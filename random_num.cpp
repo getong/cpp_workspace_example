@@ -1,13 +1,14 @@
-#include<iostream>
 #include <cstdlib>
 #include <ctime>
+#include <iostream>
 
 using namespace std;
 
 int main() {
   int randomNum{};
 
-  for (int i = 0; i < 3; i++ ){
+  srand(time(nullptr));
+  for (int i = 0; i < 3; i++) {
     randomNum = rand();
     cout << randomNum << endl;
   }
