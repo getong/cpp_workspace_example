@@ -4,7 +4,8 @@ using namespace std;
 void pause() {
 #ifdef _WIN32
   // Pause execution waiting for user input
-  system("pause"); // For Windows
+  // For Windows
+  system("pause");
 #else
   // For Unix-like systems
   system("read -p 'Press enter to continue...'");
