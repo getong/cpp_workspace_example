@@ -10,7 +10,7 @@ public:
 
   //! Destructor
   ~Entity() {
-    cout << "Entity Constructor Invoked. Member is: " << member << endl;
+    cout << "Entity Deconstructor Invoked. Member is: " << member << endl;
   };
 
   void toString() const { cout << member << endl; }
