@@ -27,3 +27,5 @@ int main() {
 
   return 0;
 }
+
+// clang++ -std=c++20 define_macro.cpp

@@ -13,4 +13,5 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-// g++ -std=c++11 ptr_to_void.cpp
+// g++ -std=c++20 ptr_to_void.cpp
+// clang++ -std=c++20 ptr_to_void.cpp

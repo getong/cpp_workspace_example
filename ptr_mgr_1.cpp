@@ -37,4 +37,5 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-// g++ -std=c++11 ptr_mgr_1.cpp
+// g++ -std=c++20 ptr_mgr_1.cpp
+// clang++ -std=c++20 ptr_mgr_1.cpp

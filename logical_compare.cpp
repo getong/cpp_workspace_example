@@ -25,4 +25,5 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-// g++ -std=c++11 logical_compare.cpp -o a.out
+// g++ -std=c++20 logical_compare.cpp
+// clang++ -std=c++20 logical_compare.cpp

@@ -20,4 +20,5 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-// g++ -std=c++11 system_pause.cpp -o a.out
+// g++ -std=c++20 system_pause.cpp
+// clang++ -std=c++20 system_pause.cpp

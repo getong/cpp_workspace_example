@@ -18,3 +18,5 @@ int main() {
 
   return 0;
 }
+
+// clang++ -std=c++20 template_ptr_example.cpp

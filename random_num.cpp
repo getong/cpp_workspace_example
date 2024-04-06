@@ -15,4 +15,5 @@ int main() {
 
   return 0;
 }
-// g++ -std=c++11 random_num.cpp
+// g++ -std=c++20 random_num.cpp
+// clang++ -std=c++20 random_num.cpp

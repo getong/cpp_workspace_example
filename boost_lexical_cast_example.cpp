@@ -24,4 +24,5 @@ int main(void) {
   }
 }
 
-// g++ -Wall -std=c++11 -lboost_system boost_lexical_cast_example.cpp -o a.out
+// g++ -std=c++20 -lboost_system boost_lexical_cast_example.cpp
+// clang++ -std=c++20 -lboost_system boost_lexical_cast_example.cpp

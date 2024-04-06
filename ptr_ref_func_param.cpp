@@ -51,4 +51,5 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-// g++ -std=c++11 ptr_ref_func_param.cpp
+// g++ -std=c++20 ptr_ref_func_param.cpp
+// clang++ -std=c++20 ptr_ref_func_param.cpp

@@ -42,4 +42,5 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-// g++ -std=c++11 dyn_array_of_ptr.cpp
+// g++ -std=c++20 dyn_array_of_ptr.cpp
+// clang++ -std=c++20 dyn_array_of_ptr.cpp

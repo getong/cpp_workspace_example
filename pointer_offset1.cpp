@@ -15,4 +15,5 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-// g++ -std=c++11 pointer_offset1.cpp -o a.out
+// g++ -std=c++20 pointer_offset1.cpp
+// clang++ -std=c++20 pointer_offset1.cpp

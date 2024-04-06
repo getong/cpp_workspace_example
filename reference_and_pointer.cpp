@@ -22,4 +22,5 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-// g++ -std=c++11 reference_and_pointer.cpp
+// g++ -std=c++20 reference_and_pointer.cpp
+// clang++ -std=c++20 reference_and_pointer.cpp
