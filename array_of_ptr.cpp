@@ -54,5 +54,5 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-// g++ -std=c++11 array_of_ptr.cpp
+// g++ -std=c++20 array_of_ptr.cpp
 // clang++ -std=c++20 array_of_ptr.cpp
