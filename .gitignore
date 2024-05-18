@@ -34,3 +34,6 @@
 **/.ccls-cache
 compile_commands.json
 **/build
+**/*.lock
+**/node_modules
+**/dist
