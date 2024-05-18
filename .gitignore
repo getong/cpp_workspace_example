@@ -37,3 +37,4 @@ compile_commands.json
 **/*.lock
 **/node_modules
 **/dist
+**/package-lock.json
