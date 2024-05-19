@@ -1,5 +1,5 @@
+#include <fmt/format.h> // Include fmt library
 #include <folly/FBString.h>
-#include <folly/Format.h>
 #include <folly/Uri.h>
 #include <folly/executors/ThreadedExecutor.h>
 #include <folly/futures/Future.h>
@@ -8,8 +8,8 @@
 
 static void print_uri(const folly::fbstring &address) {
   const folly::Uri uri(address);
-  const auto authority = folly::format("The authority from {} is {}",
-                                       uri.fbstr(), uri.authority());
+  const auto authority =
+      fmt::format("The authority from {} is {}", uri.fbstr(), uri.authority());
   std::cout << authority << std::endl;
 }
 
