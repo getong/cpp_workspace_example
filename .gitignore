@@ -38,3 +38,7 @@ compile_commands.json
 **/node_modules
 **/dist
 **/package-lock.json
+**/CMakeCache.txt
+**/CMakeFiles
+**/Makefile
+**/cmake_install.cmake
