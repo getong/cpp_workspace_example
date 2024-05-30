@@ -6,19 +6,21 @@
 #include <iostream>
 #include <utility>
 
-static void print_uri(const folly::fbstring &address) {
-  const folly::Uri uri(address);
+using namespace folly;
+using namespace std;
+
+static void print_uri(const fbstring &address) {
+  const Uri uri(address);
   const auto authority =
       fmt::format("The authority from {} is {}", uri.fbstr(), uri.authority());
-  std::cout << authority << std::endl;
+  cout << authority << endl;
 }
 
 int main() {
-  folly::ThreadedExecutor executor;
-  folly::Promise<folly::fbstring> promise;
-  folly::Future<folly::fbstring> future =
-      promise.getSemiFuture().via(&executor);
-  folly::Future<folly::Unit> unit = std::move(future).thenValue(print_uri);
+  ThreadedExecutor executor;
+  Promise<fbstring> promise;
+  Future<fbstring> future = promise.getSemiFuture().via(&executor);
+  Future<Unit> unit = std::move(future).thenValue(print_uri);
   promise.setValue("https://conan.io/");
   std::move(unit).get();
   return 0;
