@@ -5,7 +5,7 @@
 #include <folly/executors/GlobalExecutor.h>
 #include <iostream>
 #include <folly/init/Init.h>
-#include<folly/experimental/coro/Task.h>
+#include <folly/experimental/coro/Task.h>
 #include <folly/experimental/coro/Collect.h>
 #include <sys/select.h>
 #include <time.h>
@@ -42,33 +42,33 @@ int global = 0;
 
 Task<void> a() {
     global_value["a"] = ++global;
-    std::cout<<"a process time is "<<get_us_time()<<std::endl;
+    std::cout << "a process time is " << get_us_time() << std::endl;
     co_return;
 }
 
 Task<void> b() {
     sleep(2);
     global_value["b"] = ++global;
-    std::cout<<"b process time is "<<get_us_time()<<std::endl;
+    std::cout << "b process time is " << get_us_time() << std::endl;
     co_return;
 }
 
 Task<void> c() {
     global_value["c"] = ++global;
-    std::cout<<"c process time is "<<get_us_time()<<std::endl;
+    std::cout << "c process time is " << get_us_time() << std::endl;
     co_return;
 }
 
 Task<void> d() {
     global_value["d"] = ++global;
-    std::cout<<"d process time is "<<get_us_time()<<std::endl;
+    std::cout << "d process time is " << get_us_time() << std::endl;
     co_return;
 }
 
 Task<void> getA() {
     // Lock lock(mutex);
     auto lock = co_await coro_lock.co_scoped_lock();
-    std::cout<<"process get A"<<std::endl;
+    std::cout << "process get A" << std::endl;
     co_return;
 }
 
@@ -76,14 +76,13 @@ Task<void> getB() {
     // Lock lock(mutex);
     auto lock = co_await coro_lock.co_scoped_lock();
     co_await getA().scheduleOn(getGlobalCPUExecutor());
-    std::cout<<"process get B"<<std::endl;
+    std::cout << "process get B" << std::endl;
     co_return;
 }
 
-
 Task<void> getB_unlock() {
     co_await getA().scheduleOn(getGlobalCPUExecutor());
-    std::cout<<"process get B unlock"<<std::endl;
+    std::cout << "process get B unlock" << std::endl;
     co_return;
 }
 
@@ -98,7 +97,7 @@ Task<bool> sycn() {
     try {
         co_await folly::coro::collectAllRange(std::move(sum));
     } catch (...) {
-        std::cout<<"catch error"<<std::endl;
+        std::cout << "catch error" << std::endl;
     }
     std::cout << "Coroutine ended on thread: " << std::this_thread::get_id() << '\n';
     co_return true;
@@ -129,32 +128,31 @@ Task<bool> asycn() {
     co_return true;
 }
 
-int main(int argc, char *argv[])
-{
-  // folly::Init(&argc, &argv);
-  LOG(INFO) << "info test";
+int main(int argc, char *argv[]) {
+    // Initialize Folly
+    folly::Init init(&argc, &argv);
 
-  auto task1 = sycn();
-  folly::coro::blockingWait(std::move(task1).scheduleOn(&get_executor2()));
-  std::cout<<"a is "<<global_value["a"]<<" b is "<<global_value["b"]<<" c is "<<global_value["c"]<<" d is "<<global_value["d"]<<std::endl;
-  std::cout<<"global is "<<global<<std::endl;
+    LOG(INFO) << "info test";
+    
+    auto task1 = sycn();
+    folly::coro::blockingWait(std::move(task1).scheduleOn(&get_executor2()));
+    std::cout << "a is " << global_value["a"] << " b is " << global_value["b"] << " c is " << global_value["c"] << " d is " << global_value["d"] << std::endl;
+    std::cout << "global is " << global << std::endl;
 
-  auto task3 = sycn_v2();
-  folly::coro::blockingWait(std::move(task3).scheduleOn(&get_executor2()));
-  std::cout<<"a is "<<global_value["a"]<<" b is "<<global_value["b"]<<" c is "<<global_value["c"]<<" d is "<<global_value["d"]<<std::endl;
-  std::cout<<"global is "<<global<<std::endl;
+    auto task3 = sycn_v2();
+    folly::coro::blockingWait(std::move(task3).scheduleOn(&get_executor2()));
+    std::cout << "a is " << global_value["a"] << " b is " << global_value["b"] << " c is " << global_value["c"] << " d is " << global_value["d"] << std::endl;
+    std::cout << "global is " << global << std::endl;
 
-  auto task2 = asycn();
-  folly::coro::blockingWait(std::move(task2).scheduleOn(&get_executor2()));
-  std::cout<<"a is "<<global_value["a"]<<" b is "<<global_value["b"]<<" c is "<<global_value["c"]<<" d is "<<global_value["d"]<<std::endl;
-  std::cout<<"global is "<<global<<std::endl;
+    auto task2 = asycn();
+    folly::coro::blockingWait(std::move(task2).scheduleOn(&get_executor2()));
+    std::cout << "a is " << global_value["a"] << " b is " << global_value["b"] << " c is " << global_value["c"] << " d is " << global_value["d"] << std::endl;
+    std::cout << "global is " << global << std::endl;
 
-  folly::coro::blockingWait(getB_unlock().scheduleOn(&get_executor2()));
+    folly::coro::blockingWait(getB_unlock().scheduleOn(&get_executor2()));
 
-  folly::coro::blockingWait(getB().scheduleOn(&get_executor2()));
-
-  google::ShutdownGoogleLogging();
-  return 0;
+    folly::coro::blockingWait(getB().scheduleOn(&get_executor2()));
+    google::ShutdownGoogleLogging();
+    return 0;
 }
 
-// g++ -L/opt/lib -I/opt/include test_folly_coro.cpp -std=c++20 -lfolly -lglog -lgflags -lpthread -ldl -ldouble-conversion -lfmt -levent -lboost_context
