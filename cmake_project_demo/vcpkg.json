@@ -1,5 +1,5 @@
 {
-  "name": "cmake_project_demo",
+  "name": "cmake-project-demo",
   "version-semver": "0.1.0",
   "dependencies": [
     {

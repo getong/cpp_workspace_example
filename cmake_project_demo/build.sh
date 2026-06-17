@@ -9,6 +9,26 @@ VCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET:-arm64-osx}"
 VCPKG_PREFIX="$VCPKG_ROOT/installed/$VCPKG_TARGET_TRIPLET"
 TOOLCHAIN_FILE="${CMAKE_TOOLCHAIN_FILE:-$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake}"
 
+if [ -n "${LDFLAGS:-}" ]; then
+  sanitized_ldflags=""
+  for flag in $LDFLAGS; do
+    [ "$flag" = "-L/usr/local/opt/openssl@1.1/lib" ] && continue
+
+    if [ -n "$sanitized_ldflags" ]; then
+      sanitized_ldflags="$sanitized_ldflags $flag"
+    else
+      sanitized_ldflags=$flag
+    fi
+  done
+
+  if [ -n "$sanitized_ldflags" ]; then
+    LDFLAGS=$sanitized_ldflags
+    export LDFLAGS
+  else
+    unset LDFLAGS
+  fi
+fi
+
 if [ ! -f "$TOOLCHAIN_FILE" ]; then
   echo "vcpkg toolchain file not found: $TOOLCHAIN_FILE" >&2
   echo "Expected vcpkg under: $VCPKG_ROOT" >&2
@@ -26,8 +46,9 @@ cmake --fresh -S "$SCRIPT_DIR" -B "$BUILD_DIR" \
   -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_FILE" \
   -DVCPKG_TARGET_TRIPLET="$VCPKG_TARGET_TRIPLET" \
   -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH_VALUE" \
-  -Dmy_project_DEVELOPER_MODE=ON \
-  -DVCPKG_MANIFEST_FEATURES=test
+  -Dcmake_project_demo_DEVELOPER_MODE=ON \
+  -DVCPKG_MANIFEST_FEATURES=test \
+  -DVCPKG_INSTALL_OPTIONS=--no-print-usage
 
 cmake --build "$BUILD_DIR"
 
