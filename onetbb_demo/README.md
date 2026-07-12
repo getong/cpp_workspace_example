@@ -1,6 +1,14 @@
 # onetbb_demo
 
-This is the onetbb_demo project.
+This project demonstrates oneTBB parallel algorithms and C++20 coroutines.
+
+The coroutine example includes:
+
+- `TbbScheduler`, which resumes coroutine tasks in a oneTBB `task_arena`.
+- `Task<T>`, a lazy coroutine result type.
+- `Channel<T>`, a bounded asynchronous channel with backpressure and close
+  semantics.
+- A producer/consumer pipeline driven by the scheduler and channel.
 
 # Building and installing
 
