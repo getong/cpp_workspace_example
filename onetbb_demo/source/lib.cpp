@@ -10,9 +10,9 @@
 
 #include <fmt/core.h>
 #include <tbb/blocked_range.h>
+#include <tbb/flow_graph.h>
 #include <tbb/parallel_reduce.h>
-
-#include "tbb_coroutine.hpp"
+#include <tbb/task_arena.h>
 
 library::library()
     : name {fmt::format("{}", "onetbb_demo")}
@@ -35,52 +35,63 @@ int parallel_sum(std::vector<int> const& values)
       std::plus<> {});
 }
 
-namespace
-{
-Task<void> produce_numbers(Channel<int>& channel, std::size_t item_count)
-{
-  for (std::size_t index = 0; index < item_count; ++index) {
-    auto const value = static_cast<int>(index + 1);
-    if (!(co_await channel.send(value))) {
-      co_return;
-    }
-  }
-  channel.close();
-}
-
-Task<std::vector<int>> consume_numbers(Channel<int>& channel)
-{
-  auto values = std::vector<int> {};
-  while (auto value = co_await channel.receive()) {
-    values.push_back(*value);
-  }
-  co_return values;
-}
-}  // namespace
-
-CoroutinePipelineResult run_coroutine_pipeline(std::size_t item_count,
-                                               std::size_t channel_capacity,
-                                               int max_concurrency)
+FlowPipelineResult run_flow_pipeline(std::size_t item_count,
+                                     std::size_t channel_capacity,
+                                     int max_concurrency)
 {
   if (item_count > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
     throw std::invalid_argument {
         "item count exceeds the supported integer range"};
   }
+  if (channel_capacity == 0) {
+    throw std::invalid_argument {
+        "channel capacity must be greater than zero"};
+  }
   if (max_concurrency <= 0) {
     throw std::invalid_argument {"max concurrency must be greater than zero"};
   }
 
-  auto scheduler = TbbScheduler {max_concurrency};
-  auto channel = Channel<int> {scheduler, channel_capacity};
-  auto producer = produce_numbers(channel, item_count);
-  auto consumer = consume_numbers(channel);
+  auto arena = tbb::task_arena {max_concurrency};
+  auto values = std::vector<int> {};
 
-  producer.start(scheduler);
-  consumer.start(scheduler);
-  scheduler.wait();
+  arena.execute(
+      [&]
+      {
+        auto graph = tbb::flow::graph {};
 
-  producer.result();
-  auto values = consumer.result();
+        auto producer = tbb::flow::input_node<int> {
+            graph,
+            [item_count, next = std::size_t {0}](
+                tbb::flow_control& control) mutable
+            {
+              if (next == item_count) {
+                control.stop();
+                return 0;
+              }
+              return static_cast<int>(++next);
+            }};
+
+        // Mirrors the bounded channel: at most channel_capacity messages are
+        // in flight until the consumer signals the decrementer.
+        auto limiter = tbb::flow::limiter_node<int> {graph, channel_capacity};
+
+        auto consumer = tbb::flow::function_node<int, tbb::flow::continue_msg> {
+            graph,
+            tbb::flow::serial,
+            [&values](int value)
+            {
+              values.push_back(value);
+              return tbb::flow::continue_msg {};
+            }};
+
+        tbb::flow::make_edge(producer, limiter);
+        tbb::flow::make_edge(limiter, consumer);
+        tbb::flow::make_edge(consumer, limiter.decrementer());
+
+        producer.activate();
+        graph.wait_for_all();
+      });
+
   auto const sum = std::accumulate(values.begin(), values.end(), 0LL);
-  return CoroutinePipelineResult {std::move(values), sum};
+  return FlowPipelineResult {std::move(values), sum};
 }

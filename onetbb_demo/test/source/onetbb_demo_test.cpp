@@ -1,18 +1,10 @@
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
+#include <tbb/flow_graph.h>
 #include <tbb/task_arena.h>
 
 #include "lib.hpp"
-#include "tbb_coroutine.hpp"
-
-namespace
-{
-Task<int> current_tbb_worker_index()
-{
-  co_return tbb::this_task_arena::current_thread_index();
-}
-}  // namespace
 
 TEST_CASE("Name is onetbb_demo", "[library]")
 {
@@ -26,21 +18,33 @@ TEST_CASE("parallel_sum sums values with oneTBB", "[library]")
   REQUIRE(parallel_sum(values) == 21);
 }
 
-TEST_CASE("coroutines run in a oneTBB task arena", "[coroutine]")
+TEST_CASE("flow graph nodes run in a oneTBB task arena", "[flow]")
 {
-  auto scheduler = TbbScheduler {1};
-  auto task = current_tbb_worker_index();
+  auto arena = tbb::task_arena {1};
+  auto thread_index = static_cast<int>(tbb::task_arena::not_initialized);
 
-  task.start(scheduler);
-  scheduler.wait();
+  arena.execute(
+      [&]
+      {
+        auto graph = tbb::flow::graph {};
+        auto node = tbb::flow::continue_node<tbb::flow::continue_msg> {
+            graph,
+            [&thread_index](tbb::flow::continue_msg)
+            {
+              thread_index = tbb::this_task_arena::current_thread_index();
+              return tbb::flow::continue_msg {};
+            }};
 
-  REQUIRE(task.result() != tbb::task_arena::not_initialized);
+        node.try_put(tbb::flow::continue_msg {});
+        graph.wait_for_all();
+      });
+
+  REQUIRE(thread_index != tbb::task_arena::not_initialized);
 }
 
-TEST_CASE("bounded channel communicates between coroutines",
-          "[coroutine][channel]")
+TEST_CASE("bounded flow graph pipeline delivers all values", "[flow]")
 {
-  auto const result = run_coroutine_pipeline(100, 1, 1);
+  auto const result = run_flow_pipeline(100, 1, 1);
 
   REQUIRE(result.values.size() == 100);
   REQUIRE(result.values.front() == 1);
@@ -48,9 +52,9 @@ TEST_CASE("bounded channel communicates between coroutines",
   REQUIRE(result.sum == 5050);
 }
 
-TEST_CASE("coroutine pipeline handles an empty input", "[coroutine][channel]")
+TEST_CASE("flow graph pipeline handles an empty input", "[flow]")
 {
-  auto const result = run_coroutine_pipeline(0, 1, 1);
+  auto const result = run_flow_pipeline(0, 1, 1);
 
   REQUIRE(result.values.empty());
   REQUIRE(result.sum == 0);

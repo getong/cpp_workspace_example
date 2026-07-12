@@ -24,12 +24,12 @@ struct library
 
 int parallel_sum(std::vector<int> const& values);
 
-struct CoroutinePipelineResult
+struct FlowPipelineResult
 {
   std::vector<int> values;
   long long sum;
 };
 
-CoroutinePipelineResult run_coroutine_pipeline(std::size_t item_count,
-                                               std::size_t channel_capacity = 4,
-                                               int max_concurrency = 2);
+FlowPipelineResult run_flow_pipeline(std::size_t item_count,
+                                     std::size_t channel_capacity = 4,
+                                     int max_concurrency = 2);
