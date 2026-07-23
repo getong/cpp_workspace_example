@@ -10,6 +10,7 @@
 
 #include <caf/actor_system.hpp>
 #include <caf/caf_main.hpp>
+#include <caf/io/middleman.hpp>
 
 #include "demos/demos.hpp"
 #include "demos/types.hpp"
@@ -34,11 +35,13 @@ auto caf_main(caf::actor_system& sys) -> int
   demo::ping_pong(sys);  // 12 纯异步乒乓协议
   demo::delegation(sys);  // 13 请求转交
   demo::game_room(sys);  // 14 综合: 游戏房间
+  demo::distribution(sys);  // 15 网络分布(publish/remote_actor)
   sys.println("全部演示运行完毕。");
   return 0;
 }
 
 }  // namespace
 
-// 生成 main(), 并注册自定义类型 ID 块
-CAF_MAIN(caf::id_block::caf_example)
+// 生成 main(), 注册自定义类型 ID 块, 并加载 io 模块(middleman)
+// 以启用网络分布能力(demo 15 的 publish/remote_actor 依赖它)
+CAF_MAIN(caf::id_block::caf_example, caf::io::middleman)

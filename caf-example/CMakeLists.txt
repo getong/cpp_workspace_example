@@ -32,6 +32,7 @@ add_library(
     source/demos/demo_12_ping_pong.cpp
     source/demos/demo_13_delegation.cpp
     source/demos/demo_14_game_room.cpp
+    source/demos/demo_15_distribution.cpp
 )
 
 target_include_directories(
@@ -46,7 +47,8 @@ find_package(fmt REQUIRED)
 target_link_libraries(caf-example_lib PRIVATE fmt::fmt)
 
 find_package(CAF CONFIG REQUIRED)
-target_link_libraries(caf-example_lib PUBLIC CAF::core)
+# CAF::io 提供 middleman(publish/remote_actor), 即网络分布支持
+target_link_libraries(caf-example_lib PUBLIC CAF::core CAF::io)
 
 # ---- Declare executable ----
 

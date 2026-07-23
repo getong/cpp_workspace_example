@@ -57,4 +57,9 @@ void delegation(caf::actor_system& sys);
 ///    演示加入/聊天广播/定时 tick/掉线自动移除
 void game_room(caf::actor_system& sys);
 
+/// 15 网络分布(Erlang 式): publish 把 actor 暴露在 TCP 端口,
+///    remote_actor 连接远端并取回位置透明的代理句柄,
+///    消息经 BASP 协议 + inspect() 序列化跨网络传输
+void distribution(caf::actor_system& sys);
+
 }  // namespace demo
