@@ -72,6 +72,9 @@ CAF_ADD_ATOM(caf_example, demo, tick_atom)
 CAF_ADD_ATOM(caf_example, demo, ping_atom)
 CAF_ADD_ATOM(caf_example, demo, pong_atom)
 CAF_ADD_ATOM(caf_example, demo, buy_atom)
+CAF_ADD_ATOM(caf_example, demo, join_atom)
+CAF_ADD_ATOM(caf_example, demo, chat_atom)
+CAF_ADD_ATOM(caf_example, demo, say_atom)
 
 // ---- 自定义结构体 ----
 CAF_ADD_TYPE_ID(caf_example, (demo::order))

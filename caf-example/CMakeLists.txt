@@ -31,6 +31,7 @@ add_library(
     source/demos/demo_11_data_flow.cpp
     source/demos/demo_12_ping_pong.cpp
     source/demos/demo_13_delegation.cpp
+    source/demos/demo_14_game_room.cpp
 )
 
 target_include_directories(

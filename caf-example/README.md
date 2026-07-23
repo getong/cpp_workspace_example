@@ -20,6 +20,7 @@ This is the caf-example project.
 | 11 | `demo_11_data_flow.cpp` | flow API (observable): 响应式数据流水线 |
 | 12 | `demo_12_ping_pong.cpp` | 纯异步消息驱动的 actor 协议 |
 | 13 | `demo_13_delegation.cpp` | `delegate()`: 把请求透明转交给后端 actor |
+| 14 | `demo_14_game_room.cpp` | 综合示例: 游戏房间(一个玩家一个 actor, 加入/聊天广播/定时 tick/掉线移除) |
 
 构建后直接运行 `caf-example` 可执行文件即可看到全部演示的输出。
 

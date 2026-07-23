@@ -53,4 +53,8 @@ void ping_pong(caf::actor_system& sys);
 /// 13 请求转交: delegate() 把请求转给后端 actor, 由后端直接答复客户端
 void delegation(caf::actor_system& sys);
 
+/// 14 综合示例: 游戏房间 —— 一个房间 actor + 若干玩家 actor,
+///    演示加入/聊天广播/定时 tick/掉线自动移除
+void game_room(caf::actor_system& sys);
+
 }  // namespace demo

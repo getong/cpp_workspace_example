@@ -33,6 +33,7 @@ auto caf_main(caf::actor_system& sys) -> int
   demo::data_flow(sys);  // 11 响应式数据流
   demo::ping_pong(sys);  // 12 纯异步乒乓协议
   demo::delegation(sys);  // 13 请求转交
+  demo::game_room(sys);  // 14 综合: 游戏房间
   sys.println("全部演示运行完毕。");
   return 0;
 }
