@@ -1,0 +1,7 @@
+/**
+ * @page about 项目说明
+ *
+ * delegate-example 是一个独立的 C++20 教学项目，用标准库实现 Unreal Engine
+ * 风格的单播委托、多播委托和事件。请从 @ref delegate-guide 开始阅读，并结合
+ * source/main.cpp 查看完整运行示例。
+ */

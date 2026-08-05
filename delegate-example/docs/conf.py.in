@@ -1,0 +1,6 @@
+DOXYFILE = 'Doxyfile'
+
+LINKS_NAVBAR1 = [
+    (None, 'pages', [(None, 'delegate-guide'), (None, 'about')]),
+    (None, 'namespaces', []),
+]
