@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 14,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "unreal",
+      "displayName": "Unreal Engine wrapper",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/unreal"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "unreal-editor",
+      "configurePreset": "unreal",
+      "targets": ["unreal-editor-build"]
+    },
+    {
+      "name": "tarray-test",
+      "configurePreset": "unreal",
+      "targets": ["unreal-tarray-test"]
+    },
+    {
+      "name": "compile-commands",
+      "configurePreset": "unreal",
+      "targets": ["unreal-compile-commands"]
+    }
+  ]
+}

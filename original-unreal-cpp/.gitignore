@@ -1,0 +1,26 @@
+**/.DS_Store
+.idea/
+.vs/
+.vscode/
+build/
+cmake-build-*/
+prefix/
+CMakeLists.txt.user
+CMakeUserPresets.json
+compile_commands.json
+/error.txt
+
+# Unreal Engine generated files
+/Binaries/
+/DerivedDataCache/
+/Intermediate/
+/Saved/
+/*.sln
+/*.xcworkspace/
+/Config/DefaultInput.ini
+
+# Generated files from the previous nested project layout
+/unreal/Binaries/
+/unreal/DerivedDataCache/
+/unreal/Intermediate/
+/unreal/Saved/

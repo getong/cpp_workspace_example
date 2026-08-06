@@ -1,0 +1,20 @@
+name: static-checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  scripts-and-metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check shell scripts
+        run: shellcheck build.sh compile_commands.sh run.sh
+
+      - name: Validate project JSON
+        run: jq empty UnrealCppDemo.uproject CMakePresets.json
+
+      - name: Configure the CMake wrapper
+        run: cmake --preset unreal
