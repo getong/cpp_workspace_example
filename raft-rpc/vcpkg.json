@@ -1,0 +1,21 @@
+{
+  "name": "raft-rpc",
+  "version-semver": "0.1.0",
+  "dependencies": [
+    {
+      "name": "fmt"
+    },
+    "nuraft"
+  ],
+  "default-features": [],
+  "features": {
+    "test": {
+      "description": "Dependencies for testing",
+      "dependencies": [
+        {
+          "name": "catch2"
+        }
+      ]
+    }
+  }
+}
