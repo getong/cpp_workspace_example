@@ -1,0 +1,15 @@
+[package]
+name = "rust_ffi_core"
+version = "0.1.0"
+edition = "2024"
+description = "Rust core library exposed to C++ through a C ABI"
+
+[lib]
+name = "rust_ffi_core"
+crate-type = ["staticlib"]
+
+[dependencies]
+cxx = "1"
+
+[profile.release]
+lto = true
