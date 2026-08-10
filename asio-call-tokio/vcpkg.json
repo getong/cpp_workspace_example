@@ -1,0 +1,27 @@
+{
+  "name": "asio-call-tokio",
+  "version-semver": "0.1.0",
+  "dependencies": [
+    {
+      "name": "boost-asio",
+      "version>=": "1.91.0"
+    },
+    {
+      "name": "fmt",
+      "version>=": "12.2.0#1"
+    }
+  ],
+  "default-features": [],
+  "features": {
+    "test": {
+      "description": "Dependencies for testing",
+      "dependencies": [
+        {
+          "name": "catch2",
+          "version>=": "3.15.2#1"
+        }
+      ]
+    }
+  },
+  "builtin-baseline": "4493042c759d3bdff26164695dbee500d1e696c8"
+}

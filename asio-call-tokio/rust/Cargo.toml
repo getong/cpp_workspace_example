@@ -1,0 +1,16 @@
+[package]
+name = "asio_tokio_core"
+version = "0.1.0"
+edition = "2024"
+description = "Tokio-based async core exposed to C++ (asio coroutines) through a cxx bridge"
+
+[lib]
+name = "asio_tokio_core"
+crate-type = ["staticlib"]
+
+[dependencies]
+cxx = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "time"] }
+
+[profile.release]
+lto = true
