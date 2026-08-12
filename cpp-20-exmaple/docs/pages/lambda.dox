@@ -1,0 +1,109 @@
+/**
+ * @page lambda Lambda 表达式（Lambda Expressions）
+ *
+ * 对应模块：`source/modules/lambda/`，运行方式：
+ * @code{.sh}
+ * ./build/dev/cpp-20-exmaple lambda
+ * @endcode
+ *
+ * Lambda 表达式是一个匿名函数对象（闭包），完整语法为：
+ * @code{.cpp}
+ * [捕获列表]<模板参数>(形参列表) 修饰符 -> 返回类型 { 函数体 }
+ * @endcode
+ * 其中除捕获列表和函数体外均可省略。编译器为每个 lambda 生成一个
+ * 唯一的闭包类型，捕获的变量成为其成员，函数体成为其 `operator()`。
+ *
+ * @section lambda-capture 1. 捕获方式
+ *
+ * | 写法 | 含义 |
+ * |------|------|
+ * | `[]` | 不捕获任何外部变量 |
+ * | `[x]` | 按值捕获 x（拷贝一份，默认 const） |
+ * | `[&x]` | 按引用捕获 x（注意生命周期，谨防悬垂） |
+ * | `[=]` | 按值捕获所有用到的变量 |
+ * | `[&]` | 按引用捕获所有用到的变量 |
+ * | `[=, &x]` | 默认按值，仅 x 按引用（可混用） |
+ * | `[y = expr]` | 初始化捕获（C++14）：在捕获列表中定义新变量 |
+ * | `[p = std::move(ptr)]` | 移动 move-only 对象进 lambda |
+ * | `[this]` | 捕获当前对象指针，可访问成员 |
+ * | `[*this]` | 拷贝整个当前对象（C++17），不怕悬垂 |
+ * | `[=, this]` | C++20 起 `[=]` 隐式捕获 this 已弃用，需显式写出 |
+ *
+ * @section lambda-mutable 2. mutable
+ *
+ * 按值捕获的副本默认是 const 的；加 `mutable` 后可在 lambda 内修改
+ * 副本，但不影响外部原变量：
+ * @code{.cpp}
+ * int counter = 0;
+ * auto next = [counter]() mutable { return ++counter; };
+ * next();  // 1
+ * next();  // 2，外部 counter 仍为 0
+ * @endcode
+ *
+ * @section lambda-generic 3. 泛型 lambda 与 C++20 模板 lambda
+ *
+ * - C++14 泛型 lambda：`auto` 参数，等价于成员函数模板；
+ * - C++20 模板 lambda：显式命名类型参数，可加 concept 约束，
+ *   还能拿到容器的嵌套类型：
+ * @code{.cpp}
+ * auto first_or = []<typename T>(const std::vector<T>& vec, T fallback) {
+ *   return vec.empty() ? fallback : vec.front();
+ * };
+ * @endcode
+ * - 变参模板 lambda 可配合完美转发：
+ *   `[]<typename F, typename... Args>(F&& f, Args&&... args) { ... }`。
+ *
+ * @section lambda-constexpr 4. constexpr 与函数指针
+ *
+ * - 只要函数体允许，lambda 隐式就是 `constexpr`，可用于
+ *   `static_assert`、数组大小等编译期语境；
+ * - 无捕获 lambda 可隐式转换为普通函数指针，方便对接 C 风格 API。
+ *
+ * @section lambda-iife 5. IIFE（立即调用）
+ *
+ * 定义后立刻加 `()` 调用，常用于"复杂初始化后即为 const"：
+ * @code{.cpp}
+ * const std::vector<int> evens = [] {
+ *   std::vector<int> result;
+ *   for (int i = 0; i < 10; i += 2) { result.push_back(i); }
+ *   return result;
+ * }();
+ * @endcode
+ *
+ * @section lambda-recursion 6. 递归
+ *
+ * lambda 无法直接引用自身，常见两种写法：
+ * - 把自己作为参数传入：`auto fib = [](auto self, int n) -> int { ... }`，
+ *   调用时 `fib(fib, 10)`；
+ * - 用 `std::function` 命名后在体内引用（有类型擦除开销）。
+ *
+ * C++23 的 deducing this（`this auto self`）可以更直接地写递归。
+ *
+ * @section lambda-algorithms 7. 与标准算法配合
+ *
+ * lambda 最常见的用途：作为 `std::ranges::sort` 的比较器、
+ * `count_if` / `find_if` 的谓词，并可捕获外部状态参与判断。
+ * 相比函数指针，lambda 可内联，通常性能更好。
+ *
+ * @section lambda-stateless 8. C++20 无状态 lambda
+ *
+ * C++20 起无捕获 lambda 可默认构造、可赋值，因此可以只用类型
+ * 定制容器行为：
+ * @code{.cpp}
+ * auto desc = [](int a, int b) { return a > b; };
+ * std::set<int, decltype(desc)> ordered {3, 1, 2};  // 无需传入对象
+ * @endcode
+ * 此外 C++20 还允许 lambda 出现在未求值语境（如 `decltype`）中。
+ *
+ * @section lambda-this 9. 类成员中捕获 this
+ *
+ * `[this]` 只捕获指针，对象析构后调用 lambda 是未定义行为；
+ * `[*this]` 拷贝整个对象，闭包自持副本，适合异步/延迟调用场景。
+ *
+ * @section lambda-storage 存储与传递建议
+ *
+ * - 局部使用：`auto`，零开销；
+ * - 作为模板参数传递：直接传，可内联；
+ * - 需要统一类型（存容器、跨接口）：`std::function`，有类型擦除开销；
+ * - 只读回调且无捕获：函数指针即可。
+ */

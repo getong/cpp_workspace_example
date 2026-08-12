@@ -24,6 +24,7 @@ Current modules:
 - `three_way_compare` — defaulted `operator<=>` gives all six comparisons
 - `designated_init` — designated initializers for aggregate types
 - `format` — type-safe text formatting with `std::format` (falls back to fmt)
+- `lambda` — lambda expressions: captures, `mutable`, generic/template lambdas, `constexpr`, IIFE, recursion, algorithms
 
 To add a module, create `source/modules/<name>/<name>.{hpp,cpp}` exposing
 `modules::<name>::run()`, add the `.cpp` to `CMakeLists.txt`, and append one

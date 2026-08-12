@@ -10,6 +10,7 @@
 #include "designated_init/designated_init.hpp"
 #include "format/format.hpp"
 #include "hello/hello.hpp"
+#include "lambda/lambda.hpp"
 #include "ranges/ranges.hpp"
 #include "span_usage/span_usage.hpp"
 #include "three_way_compare/three_way_compare.hpp"
@@ -40,6 +41,10 @@ constexpr std::array registry {
             &designated_init::run},
     module {"format", "Type-safe text formatting with std::format",
             &format::run},
+    module {"lambda",
+            "Lambda expressions: captures, mutable, generic/template, "
+            "constexpr, IIFE, recursion",
+            &lambda::run},
 };
 
 }  // namespace
