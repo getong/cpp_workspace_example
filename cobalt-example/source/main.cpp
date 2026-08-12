@@ -1,113 +1,144 @@
-// boost::cobalt 采用 CSP (Communicating Sequential Processes) 并发模型，
-// 与 Go 相同：协程之间不共享可变状态，而是通过 channel 通信来传递数据。
+// boost::cobalt TCP echo 服务器示例，覆盖三个要点：
 //
-// 本文件演示两个最典型的 CSP 模式：
-//   1. 流水线 (pipeline)：produce -> square -> 消费，channel 关闭作为结束信号
-//   2. 多路复用 (race)：等价于 Go 的 select，从多个 channel 中取先就绪的消息
+//   1. 每个 TCP 连接一个协程：listen 协程每 accept 一条连接，
+//      就启动一个分离的 session 协程（cobalt::detached），彼此互不阻塞。
+//   2. session 内用 while 死循环持续解析 TCP 字节流：
+//      TCP 是字节流协议，一次 read 可能拿到半行或多行，
+//      所以用"连接级缓冲 + read_until 找 '\n' 帧边界"逐行拆包。
+//      连接一直保持，客户端发多少行就 echo 多少行，直到客户端主动断开。
+//   3. 客户端用 curl 的 telnet 模式建立长连接，服务端像 echo 一样
+//      返回相同信息并追加时间戳：
+//        curl telnet://127.0.0.1:8080
+//        （连接建立后逐行输入，每行回显 "原文 [时间戳]"，Ctrl+C 退出）
+//      也可以用管道一次发多行，观察同一连接被循环解析：
+//        { printf 'one\n'; sleep 1; printf 'two\n'; } | curl -s
+//        telnet://127.0.0.1:8080
 
 #include <chrono>
+#include <cstdio>
+#include <ctime>
 #include <iostream>
 #include <string>
 
-#include <boost/asio/steady_timer.hpp>
-#include <boost/cobalt/channel.hpp>
+#include <boost/asio/buffer.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/read_until.hpp>
+#include <boost/asio/write.hpp>
+#include <boost/cobalt/detached.hpp>
 #include <boost/cobalt/main.hpp>
 #include <boost/cobalt/promise.hpp>
-#include <boost/cobalt/race.hpp>
 #include <boost/cobalt/result.hpp>
-#include <boost/variant2/variant.hpp>
 
 #include "lib.hpp"
 
 namespace cobalt = boost::cobalt;
 namespace asio = boost::asio;
-using namespace std::chrono_literals;
+using asio::ip::tcp;
 
-// ---- 示例 1: 流水线 ----
-
-// 生产者：向 channel 写满数据后 close，下游以 is_open() 感知结束
-auto produce(cobalt::channel<int>& out, int count) -> cobalt::promise<void>
+namespace
 {
-  for (int i = 1; i <= count; ++i) {
-    co_await out.write(i);
-  }
-  out.close();
+
+// 形如 "2026-08-12 21:03:05.123" 的本地时间戳
+auto timestamp() -> std::string
+{
+  using clock = std::chrono::system_clock;
+  auto const now = clock::now();
+  auto const time = clock::to_time_t(now);
+  auto const millis = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          now.time_since_epoch())
+                          .count()
+      % 1000;
+  std::tm tm {};
+  localtime_r(&time, &tm);
+  char date[32];
+  auto const len = std::strftime(date, sizeof date, "%Y-%m-%d %H:%M:%S", &tm);
+  char out[48];
+  std::snprintf(out,
+                sizeof out,
+                "%.*s.%03lld",
+                static_cast<int>(len),
+                date,
+                static_cast<long long>(millis));
+  return out;
 }
 
-// 中间阶段：从上游读、变换、写给下游，上游关闭后同样关闭下游。
-// as_result 让 read 在 channel 关闭时返回错误而不是抛异常
-auto square(cobalt::channel<int>& in, cobalt::channel<int>& out)
-    -> cobalt::promise<void>
+// 去掉行尾的 \r\n（curl telnet 模式发送 CRLF）
+auto strip_eol(std::string line) -> std::string
 {
+  while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) {
+    line.pop_back();
+  }
+  return line;
+}
+
+// 要点 2：每个连接的处理协程。while 死循环 + 连接级缓冲不断从流中解析：
+//   a) read_until 读到 '\n' 为止拿到完整一行（多读的字节留在 buf 里，
+//      供下一轮循环直接解析，不会丢）
+//   b) 回写 "原文 [时间戳]"，然后继续循环等下一行
+// 连接永不主动关闭，直到对端断开 / 出错 / 收到取消信号
+auto session(tcp::socket sock, unsigned conn_id) -> cobalt::detached
+{
+  std::string buf;  // 连接级缓冲：残留的半行/多行都暂存在这里
+  unsigned served = 0;
+
   while (true) {
-    auto const value = co_await cobalt::as_result(in.read());
-    if (!value) {  // 上游已关闭
+    // a) 定位帧边界：一行以 '\n' 结束
+    auto const line_size = co_await cobalt::as_result(asio::async_read_until(
+        sock, asio::dynamic_buffer(buf), '\n', cobalt::use_op));
+    if (!line_size) {  // 对端关闭 / 出错 / 被取消
       break;
     }
-    co_await out.write(*value * *value);
+    auto const line = strip_eol(buf.substr(0, *line_size));
+    buf.erase(0, *line_size);
+
+    // 要点 3：echo 相同信息并追加时间戳
+    std::string const reply = line + " [" + timestamp() + "]\n";
+    auto const written = co_await cobalt::as_result(
+        asio::async_write(sock, asio::buffer(reply), cobalt::use_op));
+    if (!written) {
+      break;
+    }
+
+    ++served;
+    std::cout << "conn #" << conn_id << " line " << served << ": " << line
+              << std::endl;
   }
-  out.close();
+
+  std::cout << "conn #" << conn_id << " closed after " << served << " line(s)"
+            << std::endl;
 }
 
-// ---- 示例 2: race 多路复用 ----
-
-// 定时向 channel 发送消息，模拟两个节奏不同的事件源
-auto ticker(cobalt::channel<std::string>& out,
-            std::string name,
-            std::chrono::milliseconds interval,
-            int count) -> cobalt::promise<void>
+// 要点 1：accept 循环。每来一条连接就分离出一个 session 协程，
+// 立刻回到 async_accept 等待下一条连接
+auto listen(tcp::endpoint endpoint) -> cobalt::promise<void>
 {
-  asio::steady_timer timer {co_await cobalt::this_coro::executor};
-  for (int i = 1; i <= count; ++i) {
-    timer.expires_after(interval);
-    co_await timer.async_wait(cobalt::use_op);
-    co_await out.write(name + " tick #" + std::to_string(i));
+  tcp::acceptor acceptor {co_await cobalt::this_coro::executor, endpoint};
+  std::cout << "listening on " << acceptor.local_endpoint() << std::endl;
+
+  for (unsigned conn_id = 1;; ++conn_id) {
+    auto sock =
+        co_await cobalt::as_result(acceptor.async_accept(cobalt::use_op));
+    if (!sock) {  // Ctrl+C：cobalt::main 把信号转成取消
+      break;
+    }
+    std::cout << "conn #" << conn_id << " accepted from "
+              << sock->remote_endpoint() << std::endl;
+    session(std::move(*sock), conn_id);  // 分离协程，不阻塞 accept 循环
   }
 }
 
-// cobalt::main 在单线程 io_context 上运行，并自动把 Ctrl+C 转为取消信号
-auto co_main(int /*argc*/, char* /*argv*/[]) -> cobalt::main
+}  // namespace
+
+auto co_main(int argc, char* argv[]) -> cobalt::main
 {
   auto const lib = library {};
   std::cout << "Hello from " << lib.name << "!\n";
 
-  // 示例 1: produce(1..5) -> square -> 打印。
-  // 默认 channel 缓冲为 0，读写构成 rendezvous，天然背压。
-  cobalt::channel<int> numbers;
-  cobalt::channel<int> squares;
+  auto const port =
+      static_cast<unsigned short>(argc > 1 ? std::stoi(argv[1]) : 8080);
+  std::cout << "try:  curl telnet://127.0.0.1:" << port << '\n'
+            << "      (然后逐行输入，每行回显并追加时间戳，Ctrl+C 退出)\n";
 
-  auto producer = produce(numbers, 5);
-  auto transformer = square(numbers, squares);
-
-  while (true) {
-    auto const value = co_await cobalt::as_result(squares.read());
-    if (!value) {  // 流水线已结束
-      break;
-    }
-    std::cout << "pipeline: " << *value << '\n';
-  }
-  co_await producer;
-  co_await transformer;
-
-  // 示例 2: 用 race 同时等待两个 channel，谁先就绪就处理谁（Go 的 select）。
-  // race 对 channel 使用 interrupt_await，落选分支不会丢消息。
-  cobalt::channel<std::string> fast;
-  cobalt::channel<std::string> slow;
-
-  auto fast_ticker = ticker(fast, "fast", 50ms, 4);
-  auto slow_ticker = ticker(slow, "slow", 120ms, 2);
-
-  for (int received = 0; received < 6; ++received) {
-    auto msg = co_await cobalt::race(fast.read(), slow.read());
-    std::cout << "select: "
-              << boost::variant2::visit(
-                     [](std::string const& s) -> std::string const&
-                     { return s; },
-                     msg)
-              << '\n';
-  }
-
-  co_await fast_ticker;
-  co_await slow_ticker;
+  co_await listen({tcp::v4(), port});
   co_return 0;
 }
