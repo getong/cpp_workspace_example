@@ -1,7 +1,7 @@
 // boost::cobalt TCP echo 服务器示例，覆盖三个要点：
 //
 //   1. 每个 TCP 连接一个协程：listen 协程每 accept 一条连接，
-//      就启动一个分离的 session 协程（cobalt::detached），彼此互不阻塞。
+//      就启动一个 session promise，并交给 wait_group 管理。
 //   2. session 内用 while 死循环持续解析 TCP 字节流：
 //      TCP 是字节流协议，一次 read 可能拿到半行或多行，
 //      所以用"连接级缓冲 + read_until 找 '\n' 帧边界"逐行拆包。
@@ -24,10 +24,11 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/read_until.hpp>
 #include <boost/asio/write.hpp>
-#include <boost/cobalt/detached.hpp>
 #include <boost/cobalt/main.hpp>
 #include <boost/cobalt/promise.hpp>
 #include <boost/cobalt/result.hpp>
+#include <boost/cobalt/wait_group.hpp>
+#include <boost/cobalt/with.hpp>
 
 #include "lib.hpp"
 
@@ -76,7 +77,7 @@ auto strip_eol(std::string line) -> std::string
 //      供下一轮循环直接解析，不会丢）
 //   b) 回写 "原文 [时间戳]"，然后继续循环等下一行
 // 连接永不主动关闭，直到对端断开 / 出错 / 收到取消信号
-auto session(tcp::socket sock, unsigned conn_id) -> cobalt::detached
+auto session(tcp::socket sock, unsigned conn_id) -> cobalt::promise<void>
 {
   std::string buf;  // 连接级缓冲：残留的半行/多行都暂存在这里
   unsigned served = 0;
@@ -108,9 +109,10 @@ auto session(tcp::socket sock, unsigned conn_id) -> cobalt::detached
             << std::endl;
 }
 
-// 要点 1：accept 循环。每来一条连接就分离出一个 session 协程，
-// 立刻回到 async_accept 等待下一条连接
-auto listen(tcp::endpoint endpoint) -> cobalt::promise<void>
+// 要点 1：accept 循环。每来一条连接就启动一个 eager session
+// promise，将管理句柄移入 wait_group 后立即等待下一条连接。
+auto listen(tcp::endpoint endpoint, cobalt::wait_group& sessions)
+    -> cobalt::promise<void>
 {
   tcp::acceptor acceptor {co_await cobalt::this_coro::executor, endpoint};
   std::cout << "listening on " << acceptor.local_endpoint() << std::endl;
@@ -123,7 +125,8 @@ auto listen(tcp::endpoint endpoint) -> cobalt::promise<void>
     }
     std::cout << "conn #" << conn_id << " accepted from "
               << sock->remote_endpoint() << std::endl;
-    session(std::move(*sock), conn_id);  // 分离协程，不阻塞 accept 循环
+    sessions.reap();
+    sessions.push_back(session(std::move(*sock), conn_id));
   }
 }
 
@@ -139,6 +142,9 @@ auto co_main(int argc, char* argv[]) -> cobalt::main
   std::cout << "try:  curl telnet://127.0.0.1:" << port << '\n'
             << "      (然后逐行输入，每行回显并追加时间戳，Ctrl+C 退出)\n";
 
-  co_await listen({tcp::v4(), port});
+  auto const endpoint = tcp::endpoint {tcp::v4(), port};
+  co_await cobalt::with(cobalt::wait_group {asio::cancellation_type::all},
+                        [endpoint](cobalt::wait_group& sessions)
+                        { return listen(endpoint, sessions); });
   co_return 0;
 }
