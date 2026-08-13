@@ -11,7 +11,9 @@
 #include "actor_supervisor/actor_supervisor.hpp"
 #include "coroutine/coroutine.hpp"
 #include "csp_channel/csp_channel.hpp"
+#include "csp_duo/csp_duo.hpp"
 #include "csp_fanin/csp_fanin.hpp"
+#include "csp_mpsc/csp_mpsc.hpp"
 #include "csp_select/csp_select.hpp"
 #include "csp_sieve/csp_sieve.hpp"
 #include "echo_tcp/echo_tcp.hpp"
@@ -107,7 +109,11 @@ constexpr std::
                     "Go channel basics: unbuffered rendezvous, buffered, close "
                     "and " "range-over-channel",
                     &csp_channel::run},
-            module {"csp_select",
+            module {"csp_duo",
+            "Two co_spawned coroutines talking over channels: alternation, "
+            "duplex dialogue, ownership handoff, demand-driven flow",
+            &csp_duo::run},
+    module {"csp_select",
                     "Go select: multi-channel wait, time.After timeout, "
                     "done-channel " "broadcast cancellation",
                     &csp_select::run},
@@ -129,7 +135,11 @@ constexpr std::
                                                                             "ou"
                                                                             "p",
                 &csp_fanin::run},
-            module {"csp_sieve",
+            module {"csp_mpsc",
+            "MPSC channels: producers funneling into one consumer, on one "
+            "thread and across a thread pool (concurrent_channel)",
+            &csp_mpsc::run},
+    module {"csp_sieve",
                     "Concurrent prime sieve: a dynamically growing chain of "
                     "filter " "processes (the CSP classic)",
                     &csp_sieve::run},

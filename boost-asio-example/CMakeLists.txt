@@ -27,7 +27,9 @@ add_library(
     source/modules/actor_supervisor/actor_supervisor.cpp
     source/modules/coroutine/coroutine.cpp
     source/modules/csp_channel/csp_channel.cpp
+    source/modules/csp_duo/csp_duo.cpp
     source/modules/csp_fanin/csp_fanin.cpp
+    source/modules/csp_mpsc/csp_mpsc.cpp
     source/modules/csp_select/csp_select.cpp
     source/modules/csp_sieve/csp_sieve.cpp
     source/modules/echo_tcp/echo_tcp.cpp

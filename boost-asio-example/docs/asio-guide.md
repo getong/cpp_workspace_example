@@ -252,6 +252,34 @@ executor 上（本项目都是单线程 `io_context`，因此示例输出确定�
 3. **close + range**：生产者 close 宣告"没有了"；消费者 receive 到
    `channel_closed` 结束循环，缓冲区里的存货仍会先取完。
 
+### csp_duo — 两个协程互相通信的作用与效果
+
+四个最小示例，每个都恰好是**两个 `co_spawn` 出来的顶层协程**通过
+channel 对话，分别回答"双协程通信能得到什么"：
+
+1. **交替打印 —— 通信就是同步**。经典题"两个执行流交替打印数字"
+   用线程做要 mutex + condition_variable + 共享 flag 三件套；这里
+   一根"接力棒" channel 就够：数字本身是棒，收到才有打印权，打完
+   递回去。send 同时完成了"解锁 + 通知"，没有共享变量，也就没有
+   竞争、没有虚假唤醒。结束信号也是 channel 语义：`close()` 即散场。
+2. **全双工对话 —— 状态封装**。requests/responses 两根单向 channel
+   组成进程内的一对"微服务"。累加器 `total` 是 calculator 协程帧里
+   的局部变量，外界物理上无法触碰，user 只能发消息问、收消息知——
+   "通过通信来共享内存"的字面演示：内存本身从不共享。
+3. **所有权移交 —— 数据免竞争**。channel 能传 move-only 类型：
+   `unique_ptr<vector<int>>`（一百万个 int）经 channel **移动**过去，
+   两端打印的 buffer 地址相同（零拷贝），发送方指针变 null。数据
+   自始至终只有一个持有者，数据竞争在类型系统层面就不可能发生。
+4. **反向流控 —— 控制流逆着数据流走**。数据由 producer 流向
+   consumer，而"要多少"的配额（credit）由 consumer 逆向授予，
+   producer 只在有配额时生产。两根方向相反的 channel 构成闭环，
+   生产节奏完全由消费方决定——Reactive Streams `request(n)` 背压
+   协议的最小实现。
+
+共同的底层机制：`co_await send/receive` 挂起的是协程而不是线程，
+两个协程在同一个单线程 `io_context` 上交错推进，每次 channel 会合
+都是一次确定的控制权交接——所以示例输出可逐字节复现。
+
 ### csp_select — 多路等待
 
 `awaitable_operators` 的 `||` 近似 Go 的 `select`：谁先就绪走谁的
@@ -284,6 +312,38 @@ merged->close();
 
 而且 `&&` 是结构化并发：作用域结束协程必然收尾，没有 goroutine 泄漏
 问题。
+
+### csp_mpsc — MPSC channel 的功能与作用
+
+MPSC（Multi-Producer Single-Consumer）：多个生产者共享**同一根**
+channel，消息汇聚到唯一的消费者。四点要义：
+
+1. **汇聚**：把多个并发来源的事件合并成一条串行流。消费者一次只
+   处理一条消息，处理逻辑不需要任何同步——回头看 actor 系列就会
+   发现，**actor 的 mailbox 本质上就是一根 MPSC channel**（任何人
+   都能给一个 actor 发消息，只有它自己收）。
+2. **替代 mutex + queue + condition_variable 三件套**：传统工作队列/
+   日志队列要手写加锁入队、条件变量唤醒、解锁出队；MPSC channel 把
+   入队（自带背压）、唤醒、出队封装成两个 await 点。
+3. **序保证要说准**：每个生产者各自的消息保持 FIFO（p1 的 #2 绝不会
+   先于 p1 的 #1 到达），不同生产者之间按实际到达时间交错，**没有
+   全局定序**。demo 2 对 4 线程 × 250 条消息逐条验证了这一点
+   （violations: 0）。需要全局序时由消费者按业务字段（时间戳/序号）
+   重排。
+4. **关停协议是 MPSC 特有难题**：channel 是共享的，任何一个生产者都
+   无权擅自 close。两种惯用解法各演示一个——demo 1 用
+   join-then-close（`&&` 等全体生产者收工，由"监工"协程统一 close）；
+   demo 2 用计数消费者（预期总量已知，收满即止，无须 close）。
+
+线程模型的分界线：单线程/同一 strand 上用普通 `channel` 即可
+（demo 1）；生产者分布在多个线程时必须换 **`concurrent_channel`**
+（demo 2：4 个生产者协程跑在 thread_pool 上真并行，消费者跑在主线程
+io_context 上）。concurrent_channel 内部保证线程安全，成为并行世界与
+串行世界之间的唯一衔接点——日志收集器、事件总线、指标上报的标准形态。
+
+顺带说明：asio 的 channel 本身不限制端点数量（MPMC 皆可），
+SPSC / MPSC / MPMC 只是使用约定——`csp_duo` 是 SPSC，本模块是 MPSC，
+`actor_pool` 的 jobs 队列是 SPMC（一个派活的、多个抢活的）。
 
 ### csp_sieve — 并发素数筛（CSP 招牌）
 

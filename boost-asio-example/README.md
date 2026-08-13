@@ -56,10 +56,14 @@ CSP series (Go goroutine/channel idioms mapped onto coroutines + channels):
 
 - `csp_channel` — Go channel basics: unbuffered rendezvous, buffered
   channels, close and range-over-channel
+- `csp_duo` — two co_spawned coroutines talking over channels: alternation,
+  duplex dialogue, ownership handoff, demand-driven flow control
 - `csp_select` — Go select: multi-channel wait, `time.After` timeout,
   done-channel broadcast cancellation
 - `csp_fanin` — fan-out over a shared jobs channel, fan-in to one merged
   channel, `&&` as `sync.WaitGroup`
+- `csp_mpsc` — MPSC channels: producers funneling into one consumer, on one
+  thread and across a thread pool (`concurrent_channel`)
 - `csp_sieve` — the concurrent prime sieve: a dynamically growing chain of
   filter processes (the CSP classic)
 
