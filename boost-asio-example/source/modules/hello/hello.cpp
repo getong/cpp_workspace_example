@@ -1,7 +1,7 @@
-#include "hello.hpp"
-
 #include <iostream>
 #include <string>
+
+#include "hello.hpp"
 
 #include "lib.hpp"
 

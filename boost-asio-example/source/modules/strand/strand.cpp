@@ -1,9 +1,9 @@
-#include "strand.hpp"
-
 #include <atomic>
 #include <iostream>
 #include <thread>
 #include <unordered_set>
+
+#include "strand.hpp"
 
 #include <boost/asio/post.hpp>
 #include <boost/asio/strand.hpp>

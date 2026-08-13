@@ -2,7 +2,10 @@
 
 This is the boost-asio-example project, a collection of Boost.Asio feature
 modules: timers, executors, strands, C++20 coroutines and loopback
-networking, each in a small self-contained example.
+networking, plus two concurrency-model series built from coroutines and
+`asio::experimental::channel` — Erlang-style actors (mailboxes, gen_server,
+supervision, one-actor-per-connection servers) and Go-style CSP (rendezvous
+channels, select, fan-in, the concurrent prime sieve).
 
 A Chinese walkthrough of every module and the core Asio concepts lives in
 [docs/asio-guide.md](docs/asio-guide.md).
@@ -33,6 +36,32 @@ Current modules:
 - `echo_tcp` — coroutine-based TCP echo server and client over loopback
 - `udp_echo` — callback-style UDP echo over loopback datagrams
 - `resolver` — asynchronous name resolution with `ip::tcp::resolver`
+
+Actor-model series (Erlang concepts mapped onto coroutines + channels):
+
+- `actor_pingpong` — the classic Erlang ping-pong: two actors exchanging
+  messages through mailboxes (channels)
+- `actor_genserver` — gen_server-style actor: `cast` vs `call` (request-reply
+  via a reply channel), lock-free state
+- `actor_supervisor` — "let it crash": a supervisor restarts a crashing
+  worker with a restart limit
+- `actor_pipeline` — actor pipeline over bounded mailboxes: automatic
+  backpressure and cascading shutdown
+- `actor_pool` — worker pool: N workers pull jobs from a shared queue,
+  results fan in to a collector
+- `actor_chat` — TCP chat room, one actor per connection plus a room actor
+  owning the member list
+
+CSP series (Go goroutine/channel idioms mapped onto coroutines + channels):
+
+- `csp_channel` — Go channel basics: unbuffered rendezvous, buffered
+  channels, close and range-over-channel
+- `csp_select` — Go select: multi-channel wait, `time.After` timeout,
+  done-channel broadcast cancellation
+- `csp_fanin` — fan-out over a shared jobs channel, fan-in to one merged
+  channel, `&&` as `sync.WaitGroup`
+- `csp_sieve` — the concurrent prime sieve: a dynamically growing chain of
+  filter processes (the CSP classic)
 
 All networking examples talk to themselves over the loopback interface on
 system-assigned ports, so the whole suite runs offline and never conflicts

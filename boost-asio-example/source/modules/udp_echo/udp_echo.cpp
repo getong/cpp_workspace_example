@@ -1,10 +1,10 @@
-#include "udp_echo.hpp"
-
 #include <array>
 #include <cstddef>
 #include <iostream>
 #include <string>
 #include <string_view>
+
+#include "udp_echo.hpp"
 
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/io_context.hpp>
@@ -38,7 +38,8 @@ void run()
   std::array<char, 1024> server_buffer {};
   udp::endpoint sender;
   server_socket.async_receive_from(
-      boost::asio::buffer(server_buffer), sender,
+      boost::asio::buffer(server_buffer),
+      sender,
       [&](const boost::system::error_code& ec, std::size_t received)
       {
         if (ec) {
@@ -48,28 +49,30 @@ void run()
                   << '\n';
         // 回调风格的链式调用：上一步完成后在回调里发起下一步。
         server_socket.async_send_to(
-            boost::asio::buffer(server_buffer.data(), received), sender,
+            boost::asio::buffer(server_buffer.data(), received),
+            sender,
             [](const boost::system::error_code&, std::size_t) {});
       });
 
   // ---- 客户端：发送一条消息，然后等待回显 ----
   constexpr std::string_view message = "ping over udp";
   client_socket.async_send_to(
-      boost::asio::buffer(message), server_endpoint,
+      boost::asio::buffer(message),
+      server_endpoint,
       [](const boost::system::error_code&, std::size_t) {});
 
   std::array<char, 1024> client_buffer {};
   udp::endpoint replier;
   client_socket.async_receive_from(
-      boost::asio::buffer(client_buffer), replier,
+      boost::asio::buffer(client_buffer),
+      replier,
       [&](const boost::system::error_code& ec, std::size_t received)
       {
         if (ec) {
           return;
         }
         std::cout << "client: received echo '"
-                  << std::string_view {client_buffer.data(), received}
-                  << "'\n";
+                  << std::string_view {client_buffer.data(), received} << "'\n";
       });
 
   // 所有回调执行完、没有挂起的操作后 run() 返回。

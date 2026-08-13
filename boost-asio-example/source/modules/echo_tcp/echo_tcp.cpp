@@ -1,9 +1,9 @@
-#include "echo_tcp.hpp"
-
 #include <array>
 #include <iostream>
 #include <string>
 #include <string_view>
+
+#include "echo_tcp.hpp"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/buffer.hpp>
@@ -34,9 +34,8 @@ auto echo_session(tcp::socket socket) -> awaitable<void>
   try {
     for (;;) {
       // async_read_some：读到任意长度就返回，适合“来多少回多少”的 echo。
-      const auto count =
-          co_await socket.async_read_some(boost::asio::buffer(data),
-                                          use_awaitable);
+      const auto count = co_await socket.async_read_some(
+          boost::asio::buffer(data), use_awaitable);
       // async_write：与 write_some 不同，保证写完整个缓冲区才完成。
       co_await boost::asio::async_write(
           socket, boost::asio::buffer(data.data(), count), use_awaitable);
@@ -67,13 +66,13 @@ auto client(tcp::endpoint server_endpoint) -> awaitable<void>
   co_await socket.async_connect(server_endpoint, use_awaitable);
 
   constexpr std::string_view message = "hello, boost.asio!";
-  co_await boost::asio::async_write(socket, boost::asio::buffer(message),
-                                    use_awaitable);
+  co_await boost::asio::async_write(
+      socket, boost::asio::buffer(message), use_awaitable);
 
   std::string reply(message.size(), '\0');
   // async_read：读满 reply 缓冲区才完成（正好是回显的长度）。
-  co_await boost::asio::async_read(socket, boost::asio::buffer(reply),
-                                   use_awaitable);
+  co_await boost::asio::async_read(
+      socket, boost::asio::buffer(reply), use_awaitable);
   std::cout << "client: received echo '" << reply << "'\n";
   // client 析构关闭 socket，服务端读到 EOF 后结束会话。
 }
@@ -91,8 +90,8 @@ void run()
   std::cout << "server: listening on " << server_endpoint << '\n';
 
   // 服务端和客户端两个协程跑在同一个单线程事件循环上，互不阻塞。
-  boost::asio::co_spawn(ioc, server(std::move(acceptor)),
-                        boost::asio::detached);
+  boost::asio::co_spawn(
+      ioc, server(std::move(acceptor)), boost::asio::detached);
   boost::asio::co_spawn(ioc, client(server_endpoint), boost::asio::detached);
 
   ioc.run();

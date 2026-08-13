@@ -112,6 +112,202 @@ strand 的处理器实际分布在多个池线程上——串行 ≠ 固定在�
 实际连接时通常配合 `async_connect(socket, results, token)` 依次尝试每个
 endpoint 直到成功。示例解析 `localhost`，离线可运行。
 
+## Actor 模型系列（Erlang 概念对照）
+
+`actor_*` 六个模块把 Erlang 的并发模型逐个映射到 asio 协程上。
+基础对应关系贯穿全系列：
+
+| Erlang | 本项目 |
+|---|---|
+| 进程 (process) | 协程 `awaitable<void>` |
+| 邮箱 (mailbox) | `asio::experimental::channel` |
+| Pid（进程句柄） | `std::shared_ptr<channel>`（可复制、可放进消息转发） |
+| `spawn(Fun)` | `co_spawn(executor, coro, detached)` |
+| `Pid ! Msg` | `co_await mbox->async_send(...)` |
+| `receive ... end` | `co_await mbox->async_receive(...)` |
+| 不同形状的消息元组 | `std::variant` + `std::get_if` |
+
+actor 模型的两条根本规则由此自动成立：**actor 之间不共享状态**（只通过
+channel 传消息），**每个 actor 顺序处理自己的邮箱**（一个协程一次只
+处理一条消息）。于是所有 `actor_*` 示例里没有一把锁。
+
+### actor_pingpong — 消息往返
+
+Erlang 教程的第一课。ping 主动发起、pong 应答，往复三轮后 ping 发
+`stop` 通知对方退出。看点：消息用 `std::variant<ping_msg, pong_msg,
+stop_msg>` 建模；两个"进程"实际跑在同一个单线程事件循环上。
+
+### actor_genserver — call 与 cast
+
+gen_server 的两种消息模式：
+
+- **cast**（`increment`）：单向投递，发完即走；
+- **call**（`get_value`）：请求消息里带上"回信地址"——一个容量为 1 的
+  一次性 reply channel，调用方发出请求后挂起等回执。Erlang 里的回信
+  地址是调用方 Pid + 唯一引用，手法完全一致。
+
+两个客户端并发地各自增 100 次，最终恰好 200——counter 只被 server
+一个协程读写，mailbox 就是同步点。
+
+### actor_supervisor — let it crash
+
+Erlang 哲学：worker 不写防御代码，出错直接崩溃，由 supervisor 按策略
+重启。映射关键点：`co_spawn(..., use_awaitable)` 时子协程的异常会在
+`co_await` 处重新抛出——等价于 monitor 收到 `{'DOWN', Reason}` 消息。
+supervisor 在循环里 catch、计数、退避、重启（one_for_one 策略 +
+max_restarts 上限）。
+
+语言细节：C++ 不允许在 catch 块内 `co_await`，所以 catch 里只记录
+崩溃原因，重启延迟放在 try/catch 之外等。
+
+### actor_pipeline — 背压与关停传播
+
+producer → square → sink 三级流水线，用容量为 2 的有界 channel 串联。
+两个"自动"性质：
+
+1. **背压**：下游慢时 `async_send` 挂起上游，producer 只领先一个缓冲区
+   的距离。Erlang 邮箱无界、过载需另行兜底；有界 channel 把保护内建了。
+2. **关停传播**：上游 `close()` 输出通道，下游 receive 得到
+   `channel_closed` 后关闭再下一级，EOF 逐级级联。
+
+### actor_pool — 工作者池
+
+fan-out / fan-in：三个 worker 从同一条 jobs 队列领活，结果汇入同一条
+results 队列。空闲 worker 挂起在 `async_receive` 上，谁先空闲谁领活——
+负载均衡是队列语义自带的。dispatcher 发完任务后 `close(jobs)`，
+worker 领不到活自然下班（drain-then-stop）。
+
+### actor_chat — 每个连接一个 actor
+
+Erlang 网络服务的标志性架构，也是本系列的综合应用：
+
+- accept 循环对每个新连接 `co_spawn` 一个 session actor（Erlang：每个
+  accept 后 spawn 一个连接进程）；
+- room actor 独占成员表，处理入会/退会/广播——成员表无锁，因为只有
+  room 一个协程能碰它；
+- session 内部再分读写两个子协程（`&&` 结构化并发）：reader 把 socket
+  的行转成消息发给 room，writer 把自己 inbox 里的广播写回 socket；
+- 退会流程展示了 actor 间的优雅关停：reader 读到 EOF → 向 room 发
+  `leave` → room 关闭该成员 inbox → writer 退出 → session 结束。
+
+示例内置 alice/bob 两个回环客户端演一段对话，每步都等字节真正到达
+后才继续，输出是确定的。
+
+一个值得记住的坑：`std::cout << "x" << co_await f()` 会先输出前缀、
+在表达式中途挂起，其他协程的输出会插进来。协程里要"先 await 到变量，
+再一次性打印"。
+
+## CSP 系列（Go 风格）：C++ 的 CSP 编程模型综述
+
+### CSP 是什么
+
+CSP（Communicating Sequential Processes，Hoare 1978）与 actor 是并发
+建模的两大流派，Go 的 goroutine + channel 就是 CSP 的工程化。核心口号
+是 Go 谚语："**不要通过共享内存来通信，要通过通信来共享内存**"——
+数据的所有权随消息在进程间移交，于是不需要锁。
+
+CSP 与 actor 的分野在"中心"不同：
+
+| | Actor（Erlang） | CSP（Go） |
+|---|---|---|
+| 第一等公民 | 进程（Pid） | 信道（channel） |
+| 消息发给谁 | 指名道姓发给某个 Pid | 匿名——只认 channel 不认对方 |
+| 收发耦合 | 邮箱属于进程，一对一收 | channel 独立于进程，可多发多收 |
+| 缓冲 | 邮箱无界、异步 | 无缓冲（会合）或有界缓冲 |
+| 多路等待 | selective receive（按模式挑消息） | select（按 channel 挑分支） |
+
+两者在本项目里**同根同源**：`asio::experimental::channel` 既能当
+actor 的私有邮箱（`actor_*` 系列），也能当 CSP 的共享信道（`csp_*`
+系列）——区别只是用法约定，这也说明两种模型可以在同一程序里混用。
+
+### Go ↔ C++（asio 协程）对照表
+
+| Go | 本项目 |
+|---|---|
+| `go f(ch)` | `co_spawn(executor, f(chan), detached)` |
+| `make(chan T)`（无缓冲） | `make_shared<channel>(ex, 0)` |
+| `make(chan T, n)`（有缓冲） | `make_shared<channel>(ex, n)` |
+| `ch <- v` | `co_await ch->async_send({}, v, use_awaitable)` |
+| `v := <-ch` | `co_await ch->async_receive(use_awaitable)` |
+| `close(ch)` | `ch->close()` |
+| `for v := range ch` | 循环 receive 直到 `channel_closed` |
+| `select { case ... }` | `co_await (a.async_receive(...) \|\| b.async_receive(...))` |
+| `case <-time.After(d)` | `\|\| timer.async_wait(...)` |
+| `<-done` / `ctx.Done()` | 等一条 `channel<void(error_code)>`，`close` 即广播 |
+| `sync.WaitGroup` + `Wait()` | `co_await (a() && b())`（结构化并发，还不会泄漏） |
+
+goroutine 与这里的协程有一个实现差异值得知道：goroutine 由 Go 运行时
+抢占式调度到多个线程上；`co_spawn` 的协程默认协作式地跑在你给的
+executor 上（本项目都是单线程 `io_context`，因此示例输出确定）。要用
+多核，换 `thread_pool` 执行器并给共享 channel 换 `concurrent_channel`
+即可，代码形状不变。
+
+### csp_channel — channel 三要素
+
+1. **无缓冲 = 会合（rendezvous）**：send 挂起直到 receive 到场，数据
+   当面交接。输出里 sender 等了 30ms 才完成 send——**通信同时就是
+   同步**，这是 CSP 的灵魂，也是它和 actor 异步邮箱最大的语义差别。
+2. **有缓冲**：容量 3 时前 3 个 send 立即返回，第 4 个挂起等消费者
+   腾位——缓冲解耦节奏，容量就是背压阈值。
+3. **close + range**：生产者 close 宣告"没有了"；消费者 receive 到
+   `channel_closed` 结束循环，缓冲区里的存货仍会先取完。
+
+### csp_select — 多路等待
+
+`awaitable_operators` 的 `||` 近似 Go 的 `select`：谁先就绪走谁的
+分支，用返回的 `variant::index()` 区分。三个惯用法：
+
+- **双 channel select 循环**：tick/tock 两个节奏的生产者，select 按
+  到达顺序处理；
+- **超时分支**：`|| timer.async_wait(...)` 就是 `case <-time.After`；
+- **done channel**：等待者都挂在 `<-done` 上，一次 `close(done)` 唤醒
+  全部——Go 取消广播（`ctx.Done()`）的惯用法。
+
+诚实声明：`||` 在胜者完成后取消败者，**不是 Go 那种原子多路等待**。
+对"接收方先挂起、发送方后到"的无缓冲会合场景，被取消的 receive 尚未
+匹配任何发送者，不丢数据（本模块都属此类）；若 channel 有缓冲且已
+囤货，两路可能同时就绪，`||` 会取消一个已完成的接收而丢值。需要
+严格 select 语义时应让所有参与 select 的 channel 无缓冲，或使用专门
+的 select 实现。
+
+### csp_fanin — fan-out / fan-in
+
+Go 官方 "Concurrency Patterns" 的经典组合：多个 worker 从同一条 jobs
+channel 抢活（fan-out），结果汇入同一条 merged channel（fan-in）。
+fan-in 的经典难题是"谁来 close 出口、什么时候 close"——答案是 Go 的
+`go func() { wg.Wait(); close(merged) }()`，这里直译为：
+
+```cpp
+co_await (worker(1, ...) && worker(2, ...));  // && 就是 WaitGroup
+merged->close();
+```
+
+而且 `&&` 是结构化并发：作用域结束协程必然收尾，没有 goroutine 泄漏
+问题。
+
+### csp_sieve — 并发素数筛（CSP 招牌）
+
+一条**运行期动态生长**的进程链：
+
+```
+generate(2,3,4,...) → filter(2) → filter(3) → filter(5) → ... → main
+```
+
+main 每从链尾读到一个数，它必然是素数（合数都被沿途的 filter 滤掉
+了），于是为它孵化一级新 filter 接到链尾。10 个素数 = 10 级筛子进程。
+"进程和 channel 都是可以随手创建的轻量值"——这是 CSP/Go 风格区别于
+线程模型的根本体感。Go 原版靠进程退出兜底 goroutine 泄漏，这里补全
+了关停协议：close 沿链级联，所有协程干净退出。
+
+### CSP 与 Actor 如何选
+
+- 要**请求-应答、按对象建模、监督重启**（服务器里的"会话"、"账户"）：
+  actor 更顺手——状态和进程绑定，Pid 就是对象引用。
+- 要**数据流、流水线、扇入扇出、多路复用**：CSP 更顺手——channel
+  本身就是数据流的管道接头，select 是复用器。
+- 实践中经常混用：例如 `actor_chat` 的骨架是 actor 的（room/session
+  各管各的状态），而 session 内部 reader/writer 的连接方式就是 CSP 的。
+
 ## 两种风格如何选择
 
 | | 回调风格 | 协程风格 |

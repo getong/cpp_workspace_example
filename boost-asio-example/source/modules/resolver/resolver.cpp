@@ -1,6 +1,6 @@
-#include "resolver.hpp"
-
 #include <iostream>
+
+#include "resolver.hpp"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -18,7 +18,8 @@ void run()
 
   boost::asio::ip::tcp::resolver resolver {ioc};
   resolver.async_resolve(
-      "localhost", "8080",
+      "localhost",
+      "8080",
       [](const boost::system::error_code& ec,
          const boost::asio::ip::tcp::resolver::results_type& results)
       {
@@ -31,8 +32,7 @@ void run()
         for (const auto& entry : results) {
           const auto endpoint = entry.endpoint();
           std::cout << "  " << endpoint << " ("
-                    << (endpoint.address().is_v6() ? "IPv6" : "IPv4")
-                    << ")\n";
+                    << (endpoint.address().is_v6() ? "IPv6" : "IPv4") << ")\n";
         }
       });
 

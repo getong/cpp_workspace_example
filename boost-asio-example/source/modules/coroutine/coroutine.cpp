@@ -1,8 +1,8 @@
-#include "coroutine.hpp"
-
 #include <chrono>
 #include <iostream>
 #include <string>
+
+#include "coroutine.hpp"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/co_spawn.hpp>
@@ -70,13 +70,14 @@ void run()
 
   // co_spawn 把协程作为顶层任务挂到执行器上；
   // detached 表示“发射后不管”，不关心返回值和异常传播。
-  boost::asio::co_spawn(ioc,
-                        []() -> awaitable<void>
-                        {
-                          co_await sequential_demo();
-                          co_await race_demo();
-                        },
-                        boost::asio::detached);
+  boost::asio::co_spawn(
+      ioc,
+      []() -> awaitable<void>
+      {
+        co_await sequential_demo();
+        co_await race_demo();
+      },
+      boost::asio::detached);
 
   ioc.run();
 }

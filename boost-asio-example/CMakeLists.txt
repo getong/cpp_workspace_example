@@ -19,7 +19,17 @@ add_library(
     boost-asio-example_lib OBJECT
     source/lib.cpp
     source/modules/registry.cpp
+    source/modules/actor_chat/actor_chat.cpp
+    source/modules/actor_genserver/actor_genserver.cpp
+    source/modules/actor_pingpong/actor_pingpong.cpp
+    source/modules/actor_pipeline/actor_pipeline.cpp
+    source/modules/actor_pool/actor_pool.cpp
+    source/modules/actor_supervisor/actor_supervisor.cpp
     source/modules/coroutine/coroutine.cpp
+    source/modules/csp_channel/csp_channel.cpp
+    source/modules/csp_fanin/csp_fanin.cpp
+    source/modules/csp_select/csp_select.cpp
+    source/modules/csp_sieve/csp_sieve.cpp
     source/modules/echo_tcp/echo_tcp.cpp
     source/modules/hello/hello.cpp
     source/modules/post_dispatch/post_dispatch.cpp

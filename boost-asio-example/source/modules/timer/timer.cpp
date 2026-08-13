@@ -1,8 +1,8 @@
-#include "timer.hpp"
-
 #include <chrono>
 #include <functional>
 #include <iostream>
+
+#include "timer.hpp"
 
 #include <boost/asio/error.hpp>
 #include <boost/asio/io_context.hpp>
