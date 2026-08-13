@@ -29,7 +29,30 @@
  * | `[*this]` | 拷贝整个当前对象（C++17），不怕悬垂 |
  * | `[=, this]` | C++20 起 `[=]` 隐式捕获 this 已弃用，需显式写出 |
  *
- * @section lambda-mutable 2. mutable
+ * @section lambda-reference-concurrency 2. `[&]()` 与并发加锁
+ *
+ * `[&]()` 会把函数体中用到的自动存储期局部变量按引用捕获，但引用捕获
+ * 本身不提供任何线程同步。多个线程调用同一个 lambda（或它的副本）时，
+ * 如果会读写同一个非原子对象，就需要使用互斥量等同步机制：
+ * @code{.cpp}
+ * int counter = 0;
+ * std::mutex counter_mutex;
+ * auto increment_safely = [&]() {
+ *   std::scoped_lock lock {counter_mutex};
+ *   ++counter;
+ * };
+ * @endcode
+ *
+ * 如果多个线程在没有锁的情况下执行 `++counter`，至少有一个线程在写同一
+ * 个对象且线程间没有同步，会形成 data race，C++ 标准规定其行为未定义。
+ * “最终值小于预期”只是可能观察到的一种现象；崩溃、异常结果或被编译器
+ * 优化成其他行为也都可能发生。若只需原子计数，也可用 `std::atomic<int>`；
+ * 单线程调用或线程只访问彼此独立的对象时则不需要加锁。
+ *
+ * 还要保证引用捕获对象的生命周期长于 lambda 的所有调用。示例使用
+ * `std::jthread`，并在读取结果前析构线程容器，由 `jthread` 自动 join。
+ *
+ * @section lambda-mutable 3. mutable
  *
  * 按值捕获的副本默认是 const 的；加 `mutable` 后可在 lambda 内修改
  * 副本，但不影响外部原变量：
@@ -40,7 +63,7 @@
  * next();  // 2，外部 counter 仍为 0
  * @endcode
  *
- * @section lambda-generic 3. 泛型 lambda 与 C++20 模板 lambda
+ * @section lambda-generic 4. 泛型 lambda 与 C++20 模板 lambda
  *
  * - C++14 泛型 lambda：`auto` 参数，等价于成员函数模板；
  * - C++20 模板 lambda：显式命名类型参数，可加 concept 约束，
@@ -53,13 +76,13 @@
  * - 变参模板 lambda 可配合完美转发：
  *   `[]<typename F, typename... Args>(F&& f, Args&&... args) { ... }`。
  *
- * @section lambda-constexpr 4. constexpr 与函数指针
+ * @section lambda-constexpr 5. constexpr 与函数指针
  *
  * - 只要函数体允许，lambda 隐式就是 `constexpr`，可用于
  *   `static_assert`、数组大小等编译期语境；
  * - 无捕获 lambda 可隐式转换为普通函数指针，方便对接 C 风格 API。
  *
- * @section lambda-iife 5. IIFE（立即调用）
+ * @section lambda-iife 6. IIFE（立即调用）
  *
  * 定义后立刻加 `()` 调用，常用于"复杂初始化后即为 const"：
  * @code{.cpp}
@@ -70,7 +93,7 @@
  * }();
  * @endcode
  *
- * @section lambda-recursion 6. 递归
+ * @section lambda-recursion 7. 递归
  *
  * lambda 无法直接引用自身，常见两种写法：
  * - 把自己作为参数传入：`auto fib = [](auto self, int n) -> int { ... }`，
@@ -79,13 +102,13 @@
  *
  * C++23 的 deducing this（`this auto self`）可以更直接地写递归。
  *
- * @section lambda-algorithms 7. 与标准算法配合
+ * @section lambda-algorithms 8. 与标准算法配合
  *
  * lambda 最常见的用途：作为 `std::ranges::sort` 的比较器、
  * `count_if` / `find_if` 的谓词，并可捕获外部状态参与判断。
  * 相比函数指针，lambda 可内联，通常性能更好。
  *
- * @section lambda-stateless 8. C++20 无状态 lambda
+ * @section lambda-stateless 9. C++20 无状态 lambda
  *
  * C++20 起无捕获 lambda 可默认构造、可赋值，因此可以只用类型
  * 定制容器行为：
@@ -95,7 +118,7 @@
  * @endcode
  * 此外 C++20 还允许 lambda 出现在未求值语境（如 `decltype`）中。
  *
- * @section lambda-this 9. 类成员中捕获 this
+ * @section lambda-this 10. 类成员中捕获 this
  *
  * `[this]` 只捕获指针，对象析构后调用 lambda 是未定义行为；
  * `[*this]` 拷贝整个对象，闭包自持副本，适合异步/延迟调用场景。

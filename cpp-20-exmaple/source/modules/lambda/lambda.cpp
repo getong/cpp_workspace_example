@@ -3,8 +3,10 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -56,7 +58,53 @@ void basic_and_captures()
   std::cout << "doubled() = " << doubled() << '\n';
 }
 
-// ---- 2. mutable：修改按值捕获的副本 ----------------------------------------
+// ---- 2. [&] 引用捕获与并发加锁 ---------------------------------------------
+
+void reference_capture_and_locking()
+{
+  std::cout << "-- [&] capture & locking --\n";
+
+  constexpr int worker_count = 4;
+  constexpr int increments_per_worker = 10'000;
+  int counter = 0;
+  std::mutex counter_mutex;
+
+  // [&]() 按引用捕获用到的局部变量。lambda 的副本仍指向同一个 counter
+  // 和 mutex，因此多个线程调用它时，必须保护对 counter 的并发写入。
+  auto increment_safely = [&]()
+  {
+    for (int i = 0; i < increments_per_worker; ++i) {
+      const std::scoped_lock lock {counter_mutex};
+      ++counter;
+    }
+  };
+
+  {
+    std::vector<std::jthread> workers;
+    workers.reserve(worker_count);
+    for (int i = 0; i < worker_count; ++i) {
+      workers.emplace_back(increment_safely);
+    }
+  }  // jthread 在析构时 join；所有工作线程结束后才读取 counter。
+
+  std::cout << "locked counter = " << counter
+            << ", expected = " << worker_count * increments_per_worker << '\n';
+
+  int unsafe_counter = 0;
+  auto increment_without_lock = [&]()
+  {
+    for (int i = 0; i < increments_per_worker; ++i) {
+      ++unsafe_counter;
+    }
+  };
+  (void)increment_without_lock;
+
+  // 不并发执行上面的 lambda：多个线程无同步地执行 ++unsafe_counter 会产生
+  // data race，行为未定义；结果不只是“可能少加几次”，任何行为都不可靠。
+  std::cout << "unlocked version is not run: data race is undefined behavior\n";
+}
+
+// ---- 3. mutable：修改按值捕获的副本 ----------------------------------------
 
 void mutable_lambda()
 {
@@ -69,7 +117,7 @@ void mutable_lambda()
             << ", outer counter = " << counter << '\n';
 }
 
-// ---- 3. 泛型 lambda 与 C++20 模板 lambda -----------------------------------
+// ---- 4. 泛型 lambda 与 C++20 模板 lambda -----------------------------------
 
 void generic_and_template()
 {
@@ -95,7 +143,7 @@ void generic_and_template()
   std::cout << "call(plus, 3, 4) = " << call(plus, 3, 4) << '\n';
 }
 
-// ---- 4. constexpr lambda 与函数指针转换 ------------------------------------
+// ---- 5. constexpr lambda 与函数指针转换 ------------------------------------
 
 void constexpr_and_function_pointer()
 {
@@ -112,7 +160,7 @@ void constexpr_and_function_pointer()
   std::cout << "fptr(5) = " << fptr(5) << '\n';
 }
 
-// ---- 5. IIFE：立即调用的 lambda --------------------------------------------
+// ---- 6. IIFE：立即调用的 lambda --------------------------------------------
 
 void immediately_invoked()
 {
@@ -130,7 +178,7 @@ void immediately_invoked()
   std::cout << "evens.size() = " << evens.size() << '\n';
 }
 
-// ---- 6. 递归 lambda --------------------------------------------------------
+// ---- 7. 递归 lambda --------------------------------------------------------
 
 void recursive_lambda()
 {
@@ -148,7 +196,7 @@ void recursive_lambda()
   std::cout << "fact(5) = " << fact(5) << '\n';
 }
 
-// ---- 7. 与标准算法配合 -----------------------------------------------------
+// ---- 8. 与标准算法配合 -----------------------------------------------------
 
 void with_algorithms()
 {
@@ -171,7 +219,7 @@ void with_algorithms()
   std::cout << "first < 3: " << (found != nums.end() ? *found : -1) << '\n';
 }
 
-// ---- 8. C++20 新特性：无状态 lambda 可默认构造 / 用于未求值语境 ------------
+// ---- 9. C++20 新特性：无状态 lambda 可默认构造 / 用于未求值语境 ------------
 
 void cpp20_stateless()
 {
@@ -184,7 +232,7 @@ void cpp20_stateless()
   std::cout << "set first (desc) = " << *ordered.begin() << '\n';
 }
 
-// ---- 9. 类成员中捕获 this --------------------------------------------------
+// ---- 10. 类成员中捕获 this -------------------------------------------------
 
 class accumulator
 {
@@ -227,6 +275,7 @@ void capture_this()
 void run()
 {
   basic_and_captures();
+  reference_capture_and_locking();
   mutable_lambda();
   generic_and_template();
   constexpr_and_function_pointer();
