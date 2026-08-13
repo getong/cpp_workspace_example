@@ -1,0 +1,104 @@
+/**
+ * @page jthread std::jthread 与协作式取消（Cooperative Cancellation）
+ *
+ * 对应模块：`source/modules/jthread/`，运行方式：
+ * @code{.sh}
+ * ./build/dev/cpp-20-exmaple jthread
+ * @endcode
+ *
+ * @section jthread-why 为什么需要 std::jthread
+ *
+ * `std::thread` 有两个长期痛点：
+ *
+ * 1. **析构即崩溃**：`std::thread` 析构时若既没 `join()` 也没
+ *    `detach()`，程序直接 `std::terminate()`。提前 `return`、抛异常
+ *    等任何跳过 `join()` 的路径都是隐患。
+ * 2. **没有取消机制**：标准库没有提供让线程停下来的手段，只能自己
+ *    维护 `atomic<bool>` 标志并手动传递，且无法唤醒正阻塞在
+ *    条件变量/睡眠中的线程。
+ *
+ * C++20 的 `std::jthread`（j = joining）同时解决这两个问题：
+ *
+ * - **RAII**：析构时自动先 `request_stop()` 再 `join()`，作用域结束
+ *   即安全收尾，异常路径同样成立；
+ * - **内置停止令牌**：每个 jthread 自带一个 `std::stop_source`，若线程
+ *   函数的首个参数是 `std::stop_token`，构造时会自动传入。
+ *
+ * @section jthread-parts 停止机制三件套
+ *
+ * | 组件 | 角色 |
+ * |------|------|
+ * | `std::stop_source` | 取消的发起方：`request_stop()`、`get_token()` |
+ * | `std::stop_token` | 取消的观察方：`stop_requested()`、`stop_possible()` |
+ * | `std::stop_callback` | 停止发生时执行的回调（RAII 注册/注销） |
+ *
+ * 要点：
+ * - 三者共享同一份停止状态，拷贝开销类似 `shared_ptr`；
+ * - 该机制**与线程无关**，可用于任何需要协作式取消的任务
+ *   （模块第 2 节演示了脱离线程的用法）；
+ * - 取消是**协作式**的：`request_stop()` 只是把状态置位，代码必须
+ *   主动轮询 `stop_requested()` 或通过可中断等待/回调来响应，
+ *   不存在强行杀线程；
+ * - `request_stop()` 线程安全、幂等，只有第一次调用返回 true；
+ * - `stop_callback` 在**发起停止的线程**里同步执行；若注册时停止
+ *   已发生，则在注册处立即执行。典型用途：关闭 socket、向队列投毒、
+ *   notify 条件变量，以唤醒阻塞中的线程。
+ *
+ * @section jthread-raii RAII 自动收尾
+ *
+ * @code{.cpp}
+ * {
+ *   std::jthread worker([](std::stop_token st) {
+ *     while (!st.stop_requested()) { do_step(); }
+ *   });
+ * }  // 析构自动 request_stop() + join()，不会 terminate
+ * @endcode
+ *
+ * 线程函数不接收 `stop_token` 也可以用 jthread：没有协作取消，但仍
+ * 享受自动 join（前提是函数自己会返回，否则析构会永远等下去）。
+ *
+ * @section jthread-wait 可中断的等待
+ *
+ * `sleep_for` 无法被停止请求打断：轮询 + 长睡眠意味着最坏要睡完整个
+ * 周期才能响应。`std::condition_variable_any` 针对 `stop_token`
+ * 重载了 `wait` / `wait_for` / `wait_until`：
+ *
+ * @code{.cpp}
+ * std::unique_lock lock(mutex);
+ * // request_stop() 会立即唤醒，无需 notify；返回值是谓词结果
+ * bool ok = cv.wait(lock, stoken, [&] { return ready; });
+ * @endcode
+ *
+ * 这是"长时间等待且需要及时取消"场景的正确写法。注意必须用
+ * `condition_variable_any`，普通 `condition_variable` 没有这组重载。
+ *
+ * @section jthread-group 常见使用模式
+ *
+ * - **统一关停多个线程**：把同一个外部 `stop_source` 的 token 显式
+ *   传给多个线程（显式实参会取代自动注入的内置令牌），一次
+ *   `request_stop()` 关停整组任务——线程池、服务优雅退出即此模式；
+ * - **外部控制**：`worker.get_stop_source()` / `get_stop_token()` 可把
+ *   停止能力交给超时器、信号处理等组件，无需持有整个 jthread 对象；
+ * - **级联取消**：用 `stop_callback` 把父任务的停止请求转发给子任务
+ *   的 `stop_source`，形成取消树（协程/结构化并发的基础形态）。
+ *
+ * @section jthread-pitfalls 注意事项
+ *
+ * - 析构自动 join 意味着**成员声明顺序很重要**：jthread 成员应放在
+ *   它要访问的数据成员之后，保证析构时先停线程、后销毁数据；
+ * - 长时间的阻塞调用（IO、第三方库）不会自动响应停止请求，需要用
+ *   `stop_callback` 主动打断（如 shutdown socket）；
+ * - `detach()` 之后 RAII 保障失效，与 `std::thread` 无异，慎用。
+ *
+ * @section jthread-sections 模块小节对照
+ *
+ * | 小节 | 演示内容 |
+ * |------|----------|
+ * | 1 basic cooperative stop | 自动注入 stop_token + request_stop |
+ * | 2 standalone stop_source | 停止机制脱离线程独立使用 |
+ * | 3 stop_callback | 停止回调、注册时已停止的边界情况 |
+ * | 4 RAII auto stop & join | 析构自动收尾、不带 token 的函数 |
+ * | 5 interruptible wait | condition_variable_any + stop_token |
+ * | 6 one stop_source, many threads | 一次请求统一关停整组线程 |
+ * | 7 get_stop_source / get_stop_token | 从外部控制 jthread 的停止 |
+ */

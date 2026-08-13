@@ -24,6 +24,7 @@ add_library(
     source/modules/designated_init/designated_init.cpp
     source/modules/format/format.cpp
     source/modules/hello/hello.cpp
+    source/modules/jthread/jthread.cpp
     source/modules/lambda/lambda.cpp
     source/modules/ranges/ranges.cpp
     source/modules/span_usage/span_usage.cpp

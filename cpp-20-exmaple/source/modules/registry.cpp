@@ -10,6 +10,7 @@
 #include "designated_init/designated_init.hpp"
 #include "format/format.hpp"
 #include "hello/hello.hpp"
+#include "jthread/jthread.hpp"
 #include "lambda/lambda.hpp"
 #include "ranges/ranges.hpp"
 #include "span_usage/span_usage.hpp"
@@ -45,6 +46,10 @@ constexpr std::array registry {
             "Lambda expressions: captures, mutable, generic/template, "
             "constexpr, IIFE, recursion",
             &lambda::run},
+    module {"jthread",
+            "std::jthread with cooperative cancellation: stop_token, "
+            "stop_callback, RAII auto-join, interruptible waits",
+            &jthread::run},
 };
 
 }  // namespace
