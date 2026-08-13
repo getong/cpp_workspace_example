@@ -43,6 +43,17 @@ target_compile_features(cobalt-example_exe PRIVATE cxx_std_20)
 
 target_link_libraries(cobalt-example_exe PRIVATE cobalt-example_lib Boost::cobalt)
 
+# ---- spawn + channel examples ----
+
+add_executable(spawn-channel_exe source/spawn_channel.cpp)
+add_executable(cobalt-example::spawn_channel ALIAS spawn-channel_exe)
+
+set_property(TARGET spawn-channel_exe PROPERTY OUTPUT_NAME spawn-channel)
+
+target_compile_features(spawn-channel_exe PRIVATE cxx_std_20)
+
+target_link_libraries(spawn-channel_exe PRIVATE Boost::cobalt)
+
 # ---- Install rules ----
 
 if(NOT CMAKE_SKIP_INSTALL_RULES)
