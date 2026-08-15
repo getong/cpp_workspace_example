@@ -1,17 +1,18 @@
 # unreal-cpp-demo
 
-This is a standard Unreal Engine C++ project for exploring `TArray`.  The
-`.uproject`, `Config`, and `Source` directories live at the repository root,
-and all C++ code is compiled by UnrealBuildTool against the real Engine Core
-module.
+This is a standard Unreal Engine C++ project for exploring `TArray` and
+`TObjectPtr`.  The `.uproject`, `Config`, and `Source` directories live at
+the repository root, and all C++ code is compiled by UnrealBuildTool against
+the real Engine Core module.
 
 The top-level CMake project is only a convenient wrapper around
 UnrealBuildTool.  Run `./build.sh` to build the Editor module, `./run.sh` to
-execute the `TArray` Automation Test in `UnrealEditor-Cmd`, and
+execute the Automation Tests in `UnrealEditor-Cmd`, and
 `./compile_commands.sh` to generate an Unreal-aware clang database.
 
-See [the Unreal and TArray notes](docs/TARRAY.md) for the relevant Engine
-source locations and example operations.
+See [the Unreal and TArray notes](docs/TARRAY.md) and
+[the TObjectPtr notes](docs/TOBJECTPTR.md) for the relevant Engine source
+locations and example operations.
 
 # Building and installing
 

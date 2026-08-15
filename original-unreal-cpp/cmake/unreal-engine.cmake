@@ -80,7 +80,7 @@ function(add_unreal_engine_targets)
   )
 
   add_custom_target(
-      unreal-tarray-test
+      unreal-automation-test
       COMMAND
       "${CMAKE_COMMAND}"
       -E
@@ -94,12 +94,12 @@ function(add_unreal_engine_targets)
       -NoSound
       -NoP4
       -NoTraceServer
-      "-LogCmds=Global off, LogTArrayDemo Display, LogAutomationCommandLine Display, LogAutomationController Display"
-      "-ExecCmds=Automation RunTests UnrealCppDemo.Containers.TArray; Quit"
+      "-LogCmds=Global off, LogTArrayDemo Display, LogTObjectPtrDemo Display, LogAutomationCommandLine Display, LogAutomationController Display"
+      "-ExecCmds=Automation RunTests UnrealCppDemo; Quit"
       "-TestExit=Automation Test Queue Empty"
       -Log
       DEPENDS unreal-editor-build
-      COMMENT "Running the Unreal TArray automation test"
+      COMMENT "Running the Unreal automation tests"
       USES_TERMINAL
       VERBATIM
   )

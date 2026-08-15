@@ -11,7 +11,7 @@ cleanup()
 }
 trap cleanup EXIT
 
-if ! BUILD_DIR="${build_dir}" BUILD_TARGET=unreal-tarray-test \
+if ! BUILD_DIR="${build_dir}" BUILD_TARGET=unreal-automation-test \
   "${repo_root}/build.sh" >"${build_log}" 2>&1
 then
   echo "Unreal build or Automation Test failed:" >&2
@@ -33,25 +33,53 @@ if [[ ! -f "${log_file}" ]]; then
   exit 1
 fi
 
-tarray_output="$(awk '
-  /LogTArrayDemo: Display: TARRAY_DEMO\|/ {
-    line=$0
-    sub(/^.*LogTArrayDemo: Display: TARRAY_DEMO\|/, "", line)
-    print line
-  }
-' "${log_file}")"
-test_log_line="$(awk '/Test Completed.*Path=\{UnrealCppDemo\.Containers\.TArray\}/{line=$0} END{print line}' "${log_file}")"
+demo_output()
+{
+  local marker="$1"
+  awk -v marker="${marker}" '
+    {
+      pos = index($0, marker)
+      if (pos > 0) {
+        print substr($0, pos + length(marker))
+      }
+    }
+  ' "${log_file}"
+}
+
+check_test()
+{
+  local test_path="$1"
+  local test_log_line
+  test_log_line="$(awk -v needle="Path={${test_path}}" '
+    index($0, "Test Completed") > 0 && index($0, needle) > 0 {line=$0}
+    END{print line}
+  ' "${log_file}")"
+
+  if [[ "${test_log_line}" != *"Result={Success}"* ]]; then
+    echo "The Unreal Automation Test ${test_path} did not succeed." >&2
+    [[ -n "${test_log_line}" ]] && echo "${test_log_line}" >&2
+    exit 1
+  fi
+}
+
+tarray_output="$(demo_output "LogTArrayDemo: Display: TARRAY_DEMO|")"
+tobjectptr_output="$(demo_output "LogTObjectPtrDemo: Display: TOBJECTPTR_DEMO|")"
 
 if [[ -z "${tarray_output}" ]]; then
   echo "The Unreal process did not emit a TArray demo result." >&2
   exit 1
 fi
 
-if [[ "${test_log_line}" != *"Result={Success}"* ]]; then
-  echo "The Unreal TArray Automation Test did not succeed." >&2
-  [[ -n "${test_log_line}" ]] && echo "${test_log_line}" >&2
+if [[ -z "${tobjectptr_output}" ]]; then
+  echo "The Unreal process did not emit a TObjectPtr demo result." >&2
   exit 1
 fi
 
+check_test "UnrealCppDemo.Containers.TArray"
+check_test "UnrealCppDemo.UObject.TObjectPtr"
+
 printf '%s\n' "${tarray_output}"
+echo
+printf '%s\n' "${tobjectptr_output}"
 echo "Automation test: Success (UnrealCppDemo.Containers.TArray)"
+echo "Automation test: Success (UnrealCppDemo.UObject.TObjectPtr)"
